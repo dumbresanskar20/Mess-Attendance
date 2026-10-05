@@ -1,0 +1,26 @@
+{
+  "name": "mess-tokens",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Fingerprint meal-token system for a mess (paid canteen)",
+  "workspaces": [
+    "backend",
+    "dashboard",
+    "device-bridge"
+  ],
+  "scripts": {
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:dashboard": "npm --prefix dashboard run dev",
+    "dev:bridge": "npm --prefix device-bridge run dev",
+    "dev": "concurrently -n \"BACKEND,DASHBOARD,BRIDGE\" -c \"blue,green,magenta\" \"npm run dev:backend\" \"npm run dev:dashboard\" \"npm run dev:bridge\"",
+    "build": "npm --prefix backend run build && npm --prefix dashboard run build && npm --prefix device-bridge run build",
+    "test": "npm --prefix backend run test",
+    "migrate": "npm --prefix backend run migrate",
+    "seed": "npm --prefix backend run seed",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
