@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { ScanOutcome, DeviceStatus } from '../types';
 import { apiRequest } from '../api/client';
+import { useAuth } from './AuthContext';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -15,6 +16,7 @@ interface SocketContextType {
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated } = useAuth();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [latestScan, setLatestScan] = useState<ScanOutcome | null>(null);
   const [deviceStatus, setDeviceStatus] = useState<DeviceStatus | null>({
@@ -24,6 +26,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   const fetchDeviceStatus = async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+
     try {
       const data = await apiRequest<DeviceStatus>('/device/status');
       setDeviceStatus(data);
@@ -33,13 +38,26 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      if (socket) {
+        socket.disconnect();
+        setSocket(null);
+      }
+      return;
+    }
+
     fetchDeviceStatus();
 
     // Poll device status every 30 seconds
     const interval = setInterval(fetchDeviceStatus, 30000);
 
-    const s = io(window.location.origin, {
-      path: '/socket.io',
+    const socketUrl =
+      import.meta.env.VITE_BACKEND_URL ||
+      (typeof window !== 'undefined' && window.location.port === '5173'
+        ? 'http://localhost:4000'
+        : window.location.origin);
+
+    const s = io(socketUrl, {
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 10,
     });
@@ -64,7 +82,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       clearInterval(interval);
       s.disconnect();
     };
-  }, []);
+  }, [isAuthenticated]);
 
   const clearLatestScan = () => {
     setLatestScan(null);

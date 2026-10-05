@@ -230,10 +230,9 @@ router.post(
   }
 );
 
-// GET /api/device/status
+// GET /api/device/status (Hardware status health check)
 router.get(
   '/device/status',
-  authenticateJWT,
   async (req: Request, res: Response): Promise<void> => {
     try {
       const controller = new AbortController();
