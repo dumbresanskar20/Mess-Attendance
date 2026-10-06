@@ -19,6 +19,16 @@ The software is exclusively admin-facing with two strict roles: `OWNER` (full ad
 
 ---
 
+## Live Production Links
+
+| Service | Platform | URL |
+|---|---|---|
+| **Admin Dashboard** | Vercel | [https://mess-attendance-six.vercel.app/](https://mess-attendance-six.vercel.app/) |
+| **Backend REST & WebSocket API** | Render | [https://mess-attendance.onrender.com/](https://mess-attendance.onrender.com/) |
+| **Biometric Device Bridge** | Render | [https://mess-attendance-1.onrender.com/](https://mess-attendance-1.onrender.com/) |
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |

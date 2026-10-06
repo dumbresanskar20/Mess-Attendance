@@ -1,0 +1,14 @@
+{
+  "buildCommand": "npm --prefix dashboard run build",
+  "outputDirectory": "dashboard/dist",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://mess-attendance.onrender.com/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

@@ -1,4 +1,18 @@
-const BASE_URL = '/api';
+export const BACKEND_URL: string = (
+  import.meta.env.VITE_BACKEND_URL ||
+  (typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://localhost:4000'
+    : 'https://mess-attendance.onrender.com')
+).replace(/\/+$/, '');
+
+export const BASE_URL: string = (
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? '/api'
+    : `${BACKEND_URL}/api`)
+).replace(/\/+$/, '');
 
 function handleAuthFailure() {
   localStorage.removeItem('access_token');

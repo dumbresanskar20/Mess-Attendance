@@ -2,7 +2,12 @@
 
 ## 1. System Overview
 
-Mess Tokens is an on-premises, biometric-first prepaid meal-token management system designed to operate locally on a counter PC at a mess/canteen with direct LAN connectivity to a biometric fingerprint reader.
+Mess Tokens is an on-premises and cloud-deployable, biometric-first prepaid meal-token management system designed to operate locally on a counter PC or deployed in cloud environments.
+
+### Live Production Deployments:
+- **Admin Dashboard**: [https://mess-attendance-six.vercel.app/](https://mess-attendance-six.vercel.app/)
+- **Backend API**: [https://mess-attendance.onrender.com/](https://mess-attendance.onrender.com/)
+- **Device Bridge**: [https://mess-attendance-1.onrender.com/](https://mess-attendance-1.onrender.com/)
 
 ---
 
@@ -69,8 +74,11 @@ JWT_REFRESH_EXPIRES_IN=7d
 # 64 hex characters (32 bytes) for AES-256-GCM biometric encryption
 FINGERPRINT_ENCRYPTION_KEY=e4d2938a16c74bc992a514d8f072c49a1b8e6f3d5c7a9b0e2d4f6a8c0e2b4d6f
 
-CORS_ORIGIN=http://localhost:5173
-DEVICE_BRIDGE_URL=http://localhost:4001
+# Service URLs & CORS Origins
+DASHBOARD_URL=https://mess-attendance-six.vercel.app
+BACKEND_URL=https://mess-attendance.onrender.com
+DEVICE_BRIDGE_URL=https://mess-attendance-1.onrender.com
+CORS_ORIGIN=https://mess-attendance-six.vercel.app,http://localhost:5173
 POLICY_EXPIRE_UNUSED_TOKENS=false
 
 BACKUP_DIR=./backups

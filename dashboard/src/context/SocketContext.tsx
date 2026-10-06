@@ -53,9 +53,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const socketUrl =
       import.meta.env.VITE_BACKEND_URL ||
-      (typeof window !== 'undefined' && window.location.port === '5173'
+      (typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
         ? 'http://localhost:4000'
-        : window.location.origin);
+        : 'https://mess-attendance.onrender.com');
 
     const s = io(socketUrl, {
       transports: ['websocket', 'polling'],

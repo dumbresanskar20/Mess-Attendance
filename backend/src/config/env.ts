@@ -43,8 +43,15 @@ const envSchema = z.object({
   ),
 
   // CORS & Services
-  CORS_ORIGIN: z.string().default('http://localhost:5173'),
-  DEVICE_BRIDGE_URL: z.string().default('http://localhost:4001'),
+  DASHBOARD_URL: z.string().default('https://mess-attendance-six.vercel.app'),
+  BACKEND_URL: z.string().default('https://mess-attendance.onrender.com'),
+  CORS_ORIGIN: z.string().default('https://mess-attendance-six.vercel.app,http://localhost:5173'),
+  DEVICE_BRIDGE_URL: z
+    .string()
+    .default('https://mess-attendance-1.onrender.com')
+    .transform((val) =>
+      process.env.NODE_ENV === 'test' ? 'http://localhost:4001' : val.replace(/\/+$/, '')
+    ),
 
   // Business Policy
   POLICY_EXPIRE_UNUSED_TOKENS: z

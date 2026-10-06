@@ -17,6 +17,8 @@ import dashboardRoutes from './routes/dashboard.routes';
 import reportRoutes from './routes/report.routes';
 import { checkDatabaseConnection } from './db/connection';
 
+import { isOriginAllowed } from './config/cors';
+
 export function createApp(): Express {
   const app = express();
 
@@ -24,7 +26,13 @@ export function createApp(): Express {
   app.use(helmet());
   app.use(
     cors({
-      origin: [env.CORS_ORIGIN, 'http://localhost:5173', 'http://127.0.0.1:5173'],
+      origin: (origin, callback) => {
+        if (isOriginAllowed(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error(`Origin ${origin} not allowed by CORS`));
+        }
+      },
       credentials: true,
     })
   );

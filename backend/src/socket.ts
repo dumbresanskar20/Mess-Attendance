@@ -1,6 +1,7 @@
 import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { env } from './config/env';
+import { isOriginAllowed } from './config/cors';
 import { logger } from './utils/logger';
 
 let ioInstance: SocketIOServer | null = null;
@@ -8,7 +9,13 @@ let ioInstance: SocketIOServer | null = null;
 export function initSocket(server: http.Server): SocketIOServer {
   ioInstance = new SocketIOServer(server, {
     cors: {
-      origin: [env.CORS_ORIGIN, 'http://localhost:5173', 'http://127.0.0.1:5173'],
+      origin: (origin, callback) => {
+        if (isOriginAllowed(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error(`Origin ${origin} not allowed by CORS`));
+        }
+      },
       credentials: true,
     },
   });

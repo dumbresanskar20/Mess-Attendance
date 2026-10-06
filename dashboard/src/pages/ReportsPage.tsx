@@ -9,7 +9,7 @@ import {
   FileSpreadsheet,
   FileText,
 } from 'lucide-react';
-import { apiRequest } from '../api/client';
+import { apiRequest, BASE_URL } from '../api/client';
 import { Skeleton } from '../components/common/Skeleton';
 
 export const ReportsPage: React.FC = () => {
@@ -36,7 +36,7 @@ export const ReportsPage: React.FC = () => {
 
   const handleDownload = (format: 'xlsx' | 'pdf') => {
     const token = localStorage.getItem('access_token');
-    const url = `/api/reports/monthly?year=${year}&month=${month}&format=${format}`;
+    const url = `${BASE_URL}/reports/monthly?year=${year}&month=${month}&format=${format}`;
 
     // Direct authenticated fetch and download
     fetch(url, {

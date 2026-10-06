@@ -109,6 +109,8 @@ router.post(
 
       // Forward to device bridge if bridge is up
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 2000);
         await fetch(`${env.DEVICE_BRIDGE_URL}/sync`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -121,7 +123,9 @@ router.post(
               },
             ],
           }),
+          signal: controller.signal,
         });
+        clearTimeout(timeout);
       } catch (err) {
         // Bridge may be offline; template is safely stored in database
       }
@@ -322,11 +326,15 @@ router.post(
 
       let bridgeResult = { success: false, syncedCount: 0 };
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 2000);
         const bridgeRes = await fetch(`${env.DEVICE_BRIDGE_URL}/sync`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ templates: decryptedPayloads }),
+          signal: controller.signal,
         });
+        clearTimeout(timeout);
         if (bridgeRes.ok) {
           bridgeResult = await bridgeRes.json();
         }

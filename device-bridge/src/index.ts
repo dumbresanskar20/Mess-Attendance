@@ -10,7 +10,12 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
 
 const PORT = process.env.BRIDGE_PORT || 4001;
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
+const BACKEND_URL = (
+  process.env.BACKEND_URL ||
+  (process.env.NODE_ENV === 'production'
+    ? 'https://mess-attendance.onrender.com'
+    : 'http://localhost:4000')
+).replace(/\/+$/, '');
 const DEVICE_DRIVER = process.env.DEVICE_DRIVER || 'mock';
 const ZK_IP = process.env.ZK_DEVICE_IP || '192.168.1.201';
 const ZK_PORT = Number(process.env.ZK_DEVICE_PORT) || 4370;
@@ -112,5 +117,6 @@ device.connect().then((connected: boolean) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`[Bridge] Device Bridge service running on http://localhost:${PORT}`);
+  console.log(`[Bridge] Device Bridge service running on port ${PORT}`);
+  console.log(`[Bridge] Connected to Backend: ${BACKEND_URL}`);
 });
