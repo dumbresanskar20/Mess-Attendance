@@ -13,6 +13,8 @@ for (const envPath of possibleEnvPaths) {
   dotenv.config({ path: envPath });
 }
 
+import { APP_URLS } from './urls';
+
 const envSchema = z.object({
   PORT: z.coerce.number().default(4000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -43,12 +45,12 @@ const envSchema = z.object({
   ),
 
   // CORS & Services
-  DASHBOARD_URL: z.string().default('https://mess-attendance-six.vercel.app'),
-  BACKEND_URL: z.string().default('https://mess-attendance.onrender.com'),
-  CORS_ORIGIN: z.string().default('https://mess-attendance-six.vercel.app,http://localhost:5173'),
+  DASHBOARD_URL: z.string().default(APP_URLS.dashboard),
+  BACKEND_URL: z.string().default(APP_URLS.backend),
+  CORS_ORIGIN: z.string().default(`${APP_URLS.dashboard},http://localhost:5173`),
   DEVICE_BRIDGE_URL: z
     .string()
-    .default('https://mess-attendance-1.onrender.com')
+    .default(APP_URLS.deviceBridge)
     .transform((val) =>
       process.env.NODE_ENV === 'test' ? 'http://localhost:4001' : val.replace(/\/+$/, '')
     ),

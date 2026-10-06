@@ -9,11 +9,13 @@ import { ZkDevice } from './drivers/zk.driver';
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
 
+import { APP_URLS } from './urls';
+
 const PORT = process.env.BRIDGE_PORT || 4001;
 const BACKEND_URL = (
   process.env.BACKEND_URL ||
   (process.env.NODE_ENV === 'production'
-    ? 'https://mess-attendance.onrender.com'
+    ? APP_URLS.backend
     : 'http://localhost:4000')
 ).replace(/\/+$/, '');
 const DEVICE_DRIVER = process.env.DEVICE_DRIVER || 'mock';

@@ -1,7 +1,8 @@
 import { env } from './env';
+import { APP_URLS } from './urls';
 
 const defaultOrigins = [
-  'https://mess-attendance-six.vercel.app',
+  APP_URLS.dashboard,
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://localhost:4000',

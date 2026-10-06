@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import { ScanOutcome, DeviceStatus } from '../types';
 import { apiRequest } from '../api/client';
 import { useAuth } from './AuthContext';
+import { APP_URLS } from '../config/urls';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -56,7 +57,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       (typeof window !== 'undefined' &&
       (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
         ? 'http://localhost:4000'
-        : 'https://mess-attendance.onrender.com');
+        : APP_URLS.backend);
 
     const s = io(socketUrl, {
       transports: ['websocket', 'polling'],

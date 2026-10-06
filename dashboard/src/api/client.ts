@@ -1,9 +1,11 @@
+import { APP_URLS } from '../config/urls';
+
 export const BACKEND_URL: string = (
   import.meta.env.VITE_BACKEND_URL ||
   (typeof window !== 'undefined' &&
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? 'http://localhost:4000'
-    : 'https://mess-attendance.onrender.com')
+    : APP_URLS.backend)
 ).replace(/\/+$/, '');
 
 export const BASE_URL: string = (
