@@ -31,6 +31,8 @@ export const CounterPage: React.FC = () => {
     name: string;
     servedCount: number;
   }>({ name: 'Lunch', servedCount: 0 });
+  const [mealWindows, setMealWindows] = useState<{ id: number; name: string; start_time: string; end_time: string }[]>([]);
+  const [selectedWindowId, setSelectedWindowId] = useState<number | ''>('');
 
   // Manual marking state
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,7 +41,7 @@ export const CounterPage: React.FC = () => {
   const [manualReason, setManualReason] = useState<ManualReason>('FINGER_NOT_READING');
   const [manualNote, setManualNote] = useState('');
   const [submittingManual, setSubmittingManual] = useState(false);
-  const [manualMessage, setManualMessage] = useState<string | null>(null);
+  const [manualMessage, setManualMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Dev simulation state
   const [allStudents, setAllStudents] = useState<Student[]>([]);
@@ -49,14 +51,21 @@ export const CounterPage: React.FC = () => {
   // Auto-reset timer ref
   const resetTimerRef = useRef<any>(null);
 
-  // Fetch initial window info
+  // Fetch initial window info and all active windows
   const fetchWindowInfo = async () => {
     try {
-      const data = await apiRequest('/dashboard/today');
+      const [todayData, windowsData] = await Promise.all([
+        apiRequest('/dashboard/today'),
+        apiRequest('/meal-windows').catch(() => []),
+      ]);
       setWindowInfo({
-        name: data.activeWindow.name,
-        servedCount: data.metrics.served.count,
+        name: todayData.activeWindow?.name || 'Lunch',
+        servedCount: todayData.metrics?.served?.count || 0,
       });
+      if (Array.isArray(windowsData) && windowsData.length > 0) {
+        setMealWindows(windowsData);
+        setSelectedWindowId((prev) => prev || todayData.activeWindow?.id || windowsData[0].id);
+      }
     } catch (e) {}
   };
 
@@ -147,16 +156,30 @@ export const CounterPage: React.FC = () => {
           studentId: selectedStudent.id,
           manualReason,
           note: manualNote,
+          simulatedWindowId: selectedWindowId || undefined,
         }),
       });
 
       handleNewScanOutcome(outcome);
-      setSelectedStudent(null);
-      setSearchQuery('');
-      setManualNote('');
-      setManualMessage('Manual meal recorded successfully.');
+      if (outcome.result === 'APPROVED') {
+        setSelectedStudent(null);
+        setSearchQuery('');
+        setManualNote('');
+        setManualMessage({
+          type: 'success',
+          text: `Meal approved for ${outcome.student?.name || selectedStudent.name}. ${outcome.student?.tokensLeft ?? ''} tokens left.`,
+        });
+      } else {
+        setManualMessage({
+          type: 'error',
+          text: outcome.message || 'Meal rejected for this window.',
+        });
+      }
     } catch (err: any) {
-      setManualMessage(err.message || 'Failed to mark manual meal');
+      setManualMessage({
+        type: 'error',
+        text: err.message || 'Failed to mark manual meal',
+      });
     } finally {
       setSubmittingManual(false);
     }
@@ -171,10 +194,11 @@ export const CounterPage: React.FC = () => {
         method: 'POST',
         body: JSON.stringify({
           studentId: Number(simulatedStudentId),
+          simulatedWindowId: selectedWindowId || undefined,
         }),
       });
       handleNewScanOutcome(outcome);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Simulate scan failed:', err);
     } finally {
       setSimulating(false);
@@ -199,9 +223,23 @@ export const CounterPage: React.FC = () => {
         <div className="flex flex-wrap items-center gap-3 sm:gap-4">
           <div className="flex items-center gap-2">
             <span className="text-xs text-text-muted font-medium">Meal window:</span>
-            <span className="text-xs sm:text-sm font-bold text-text bg-surface-subtle px-2.5 py-1 rounded-md border border-border">
-              {windowInfo.name}
-            </span>
+            {mealWindows.length > 0 ? (
+              <select
+                value={selectedWindowId}
+                onChange={(e) => setSelectedWindowId(e.target.value ? Number(e.target.value) : '')}
+                className="text-xs sm:text-sm font-bold text-text bg-surface-subtle px-2.5 py-1 rounded-md border border-border focus:border-accent focus:outline-hidden"
+              >
+                {mealWindows.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} ({w.start_time.slice(0, 5)} - {w.end_time.slice(0, 5)})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="text-xs sm:text-sm font-bold text-text bg-surface-subtle px-2.5 py-1 rounded-md border border-border">
+                {windowInfo.name}
+              </span>
+            )}
           </div>
           <div className="hidden sm:block h-4 w-[1px] bg-border" />
           <div className="flex items-center gap-2">
@@ -346,8 +384,15 @@ export const CounterPage: React.FC = () => {
           </div>
 
           {manualMessage && (
-            <div className="mb-4 p-2.5 rounded bg-surface-subtle text-xs font-medium border border-border">
-              {manualMessage}
+            <div
+              className={`mb-4 p-2.5 rounded text-xs font-medium border flex items-center gap-2 ${
+                manualMessage.type === 'success'
+                  ? 'bg-success-subtle text-success border-success-border'
+                  : 'bg-danger-subtle text-danger border-danger-border'
+              }`}
+            >
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <span>{manualMessage.text}</span>
             </div>
           )}
 

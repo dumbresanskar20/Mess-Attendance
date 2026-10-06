@@ -134,11 +134,10 @@ export const StaffAuditPage: React.FC = () => {
       <div className="border-b border-border flex items-center gap-4 sm:gap-6 text-xs font-semibold overflow-x-auto whitespace-nowrap">
         <button
           onClick={() => setActiveTab('staff')}
-          className={`pb-3 flex items-center gap-2 border-b-2 flex-shrink-0 transition-colors ${
-            activeTab === 'staff'
+          className={`pb-3 flex items-center gap-2 border-b-2 flex-shrink-0 transition-colors ${activeTab === 'staff'
               ? 'border-accent text-accent'
               : 'border-transparent text-text-muted hover:text-text'
-          }`}
+            }`}
         >
           <Shield className="w-4 h-4" />
           <span>Staff accounts</span>
@@ -146,11 +145,10 @@ export const StaffAuditPage: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('audit')}
-          className={`pb-3 flex items-center gap-2 border-b-2 flex-shrink-0 transition-colors ${
-            activeTab === 'audit'
+          className={`pb-3 flex items-center gap-2 border-b-2 flex-shrink-0 transition-colors ${activeTab === 'audit'
               ? 'border-accent text-accent'
               : 'border-transparent text-text-muted hover:text-text'
-          }`}
+            }`}
         >
           <History className="w-4 h-4" />
           <span>Security audit log</span>

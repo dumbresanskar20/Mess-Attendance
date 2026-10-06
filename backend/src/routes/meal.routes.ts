@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { db } from '../db/connection';
 import { authenticateJWT } from '../middlewares/auth.middleware';
 import * as scanService from '../services/scan.service';
 import { logAudit, getClientIp } from '../services/audit.service';
@@ -26,6 +27,21 @@ const manualMealSchema = z.object({
   note: z.string().optional(),
   simulatedWindowId: z.coerce.number().optional(),
 });
+
+// GET /api/meal-windows (Active meal windows)
+router.get(
+  '/meal-windows',
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const windows = await db('meal_windows')
+        .where('is_active', true)
+        .orderBy('start_time', 'asc');
+      res.json(windows);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 // POST /api/scan (Device Bridge & Counter Scanner)
 router.post(

@@ -442,7 +442,7 @@ export async function processManualMeal(input: ManualMealInput): Promise<ScanRes
   return await db.transaction(async (trx) => {
     // 1. Resolve Meal Window
     const activeWindow = await getActiveMealWindow(trx, input.simulatedWindowId);
-    const fallbackWindow = activeWindow || (await trx('meal_windows').first()) || { id: 1, name: 'General' };
+    const fallbackWindow = (await trx('meal_windows').where('is_active', true).first()) || { id: 1, name: 'General' };
 
     // 2. Resolve Student
     const student = await trx('students')
@@ -497,8 +497,8 @@ export async function processManualMeal(input: ManualMealInput): Promise<ScanRes
       return outcome;
     }
 
-    // Active Window Check
-    if (!activeWindow) {
+    // Active Window Check: only reject if an explicit simulated window was given and not found
+    if (input.simulatedWindowId !== undefined && !activeWindow) {
       const [mealLogId] = await trx('meal_log').insert({
         student_id: student.id,
         meal_window_id: fallbackWindow.id,
@@ -532,11 +532,13 @@ export async function processManualMeal(input: ManualMealInput): Promise<ScanRes
       return outcome;
     }
 
+    const targetWindow = activeWindow || fallbackWindow;
+
     // Already Ate Check
     const recentApproved = await trx('meal_log')
       .where({
         student_id: student.id,
-        meal_window_id: activeWindow.id,
+        meal_window_id: targetWindow.id,
         meal_date: todayStr,
         result: 'APPROVED',
       })
@@ -545,7 +547,7 @@ export async function processManualMeal(input: ManualMealInput): Promise<ScanRes
     if (recentApproved) {
       const [mealLogId] = await trx('meal_log').insert({
         student_id: student.id,
-        meal_window_id: activeWindow.id,
+        meal_window_id: targetWindow.id,
         meal_date: todayStr,
         method: 'MANUAL',
         result: 'REJECTED',
@@ -590,7 +592,7 @@ export async function processManualMeal(input: ManualMealInput): Promise<ScanRes
     if (!activeStudentPlan) {
       const [mealLogId] = await trx('meal_log').insert({
         student_id: student.id,
-        meal_window_id: activeWindow.id,
+        meal_window_id: targetWindow.id,
         meal_date: todayStr,
         method: 'MANUAL',
         result: 'REJECTED',
@@ -628,7 +630,7 @@ export async function processManualMeal(input: ManualMealInput): Promise<ScanRes
     if (balance <= 0) {
       const [mealLogId] = await trx('meal_log').insert({
         student_id: student.id,
-        meal_window_id: activeWindow.id,
+        meal_window_id: targetWindow.id,
         meal_date: todayStr,
         method: 'MANUAL',
         result: 'REJECTED',
@@ -662,7 +664,7 @@ export async function processManualMeal(input: ManualMealInput): Promise<ScanRes
     // Approved Manual Meal
     const [mealLogId] = await trx('meal_log').insert({
       student_id: student.id,
-      meal_window_id: activeWindow.id,
+      meal_window_id: targetWindow.id,
       meal_date: todayStr,
       method: 'MANUAL',
       result: 'APPROVED',
