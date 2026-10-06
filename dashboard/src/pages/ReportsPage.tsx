@@ -67,12 +67,12 @@ export const ReportsPage: React.FC = () => {
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
           {/* Month Selector */}
           <select
             value={month}
             onChange={(e) => setMonth(Number(e.target.value))}
-            className="px-3 py-1.5 bg-surface-elevated text-xs rounded-lg border border-border"
+            className="flex-1 sm:flex-none px-3 py-1.5 bg-surface-elevated text-xs rounded-lg border border-border"
           >
             {[
               'January', 'February', 'March', 'April', 'May', 'June',
@@ -97,7 +97,7 @@ export const ReportsPage: React.FC = () => {
           {/* Download Buttons */}
           <button
             onClick={() => handleDownload('xlsx')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-elevated hover:bg-surface text-text border border-border text-xs font-semibold rounded-lg shadow-xs transition-colors"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 bg-surface-elevated hover:bg-surface text-text border border-border text-xs font-semibold rounded-lg shadow-xs transition-colors"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
             <span>Excel (.xlsx)</span>
@@ -105,7 +105,7 @@ export const ReportsPage: React.FC = () => {
 
           <button
             onClick={() => handleDownload('pdf')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-elevated hover:bg-surface text-text border border-border text-xs font-semibold rounded-lg shadow-xs transition-colors"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 bg-surface-elevated hover:bg-surface text-text border border-border text-xs font-semibold rounded-lg shadow-xs transition-colors"
           >
             <FileText className="w-4 h-4 text-rose-600" />
             <span>PDF (.pdf)</span>

@@ -7,7 +7,7 @@ import {
   ChevronRight,
   Fingerprint,
   AlertCircle,
-  CheckCircle,
+  Phone,
 } from 'lucide-react';
 import { apiRequest } from '../api/client';
 import { Badge } from '../components/common/Badge';
@@ -132,7 +132,7 @@ export const StudentsPage: React.FC = () => {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Top Header Actions */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-bold text-text">Student directory</h2>
           <span className="text-xs text-text-muted">
@@ -145,7 +145,7 @@ export const StudentsPage: React.FC = () => {
             setNewCode(`STU-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`);
             setIsAddOpen(true);
           }}
-          className="flex items-center gap-1.5 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
+          className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-xs font-semibold rounded-lg shadow-sm transition-colors w-full sm:w-auto"
         >
           <Plus className="w-4 h-4" />
           <span>Add student</span>
@@ -153,7 +153,7 @@ export const StudentsPage: React.FC = () => {
       </div>
 
       {/* Filter Tabs & Search Bar */}
-      <div className="p-4 rounded-card bg-surface-elevated border border-border space-y-3">
+      <div className="p-3 sm:p-4 rounded-card bg-surface-elevated border border-border space-y-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           {/* Search Box */}
           <div className="relative flex-1 max-w-md">
@@ -162,7 +162,7 @@ export const StudentsPage: React.FC = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by student name, code, or phone..."
+              placeholder="Search student name, code, phone..."
               className="w-full pl-9 pr-3 py-1.5 bg-surface text-xs rounded-lg border border-border focus:border-accent focus:outline-hidden"
             />
           </div>
@@ -181,7 +181,7 @@ export const StudentsPage: React.FC = () => {
                   setFilter(tab.id as any);
                   setPage(1);
                 }}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-md text-[11px] sm:text-xs font-medium transition-colors ${
                   filter === tab.id
                     ? 'bg-accent text-white font-semibold shadow-xs'
                     : 'bg-surface hover:bg-surface-subtle text-text-muted hover:text-text border border-border'
@@ -194,9 +194,87 @@ export const StudentsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Students Table */}
+      {/* Students Table & Mobile Card List */}
       <div className="rounded-card bg-surface-elevated border border-border overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Mobile Card List View */}
+        <div className="md:hidden divide-y divide-border">
+          {loading ? (
+            [...Array(5)].map((_, i) => (
+              <div key={i} className="p-3.5 space-y-2">
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+              </div>
+            ))
+          ) : students.length === 0 ? (
+            <div className="py-12 text-center text-xs text-text-muted">
+              No students found matching your criteria.
+            </div>
+          ) : (
+            students.map((s) => (
+              <div
+                key={s.id}
+                onClick={() => navigate(`/students/${s.id}`)}
+                className="p-3.5 hover:bg-surface-subtle active:bg-surface-subtle cursor-pointer transition-colors space-y-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <img
+                      src={
+                        s.photo_path ||
+                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${s.student_code}`
+                      }
+                      alt={s.name}
+                      className="w-9 h-9 rounded-full border border-border object-cover bg-surface-subtle flex-shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <span className="font-semibold text-text text-xs block truncate">{s.name}</span>
+                      <span className="text-[10px] text-text-muted font-mono">{s.student_code}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <Badge
+                      variant={
+                        s.tokens_left > 10
+                          ? 'success'
+                          : s.tokens_left > 0
+                          ? 'warning'
+                          : 'danger'
+                      }
+                    >
+                      {s.tokens_left} {s.tokens_left === 1 ? 'token' : 'tokens'}
+                    </Badge>
+                    <ChevronRight className="w-4 h-4 text-text-muted" />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border/50 text-text-muted">
+                  <div className="flex items-center gap-1.5 truncate max-w-[180px]">
+                    <span className="font-medium text-text truncate">
+                      {s.active_plan || 'No plan'}
+                    </span>
+                    {s.plan_end_date && <span>&bull; {s.plan_end_date}</span>}
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span
+                      className={`inline-flex items-center gap-0.5 font-semibold ${
+                        s.finger_count < 2 ? 'text-warning' : 'text-text-muted'
+                      }`}
+                    >
+                      <Fingerprint className="w-3 h-3" />
+                      <span>{s.finger_count}</span>
+                    </span>
+                    <Badge variant={s.status === 'ACTIVE' ? 'success' : 'neutral'}>
+                      {s.status}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop / Tablet Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-border bg-surface-subtle text-[11px] font-semibold text-text-muted uppercase tracking-wider">
@@ -410,18 +488,18 @@ export const StudentsPage: React.FC = () => {
             </label>
           </div>
 
-          <div className="pt-4 flex items-center justify-end gap-2">
+          <div className="pt-4 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2">
             <button
               type="button"
               onClick={() => setIsAddOpen(false)}
-              className="px-3.5 py-2 rounded-lg border border-border text-xs font-medium hover:bg-surface-subtle transition-colors"
+              className="px-3.5 py-2 rounded-lg border border-border text-xs font-medium hover:bg-surface-subtle transition-colors text-center"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-colors disabled:opacity-50"
+              className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-colors disabled:opacity-50"
             >
               <Fingerprint className="w-3.5 h-3.5" />
               <span>{submitting ? 'Registering...' : 'Scan fingerprint & register'}</span>

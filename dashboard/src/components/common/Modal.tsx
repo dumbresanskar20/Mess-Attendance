@@ -33,7 +33,7 @@ export const Modal: React.FC<ModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
@@ -42,9 +42,9 @@ export const Modal: React.FC<ModalProps> = ({
 
       {/* Modal Dialog */}
       <div
-        className={`relative w-full ${maxWidth} bg-surface-elevated rounded-card border border-border shadow-xl z-10 overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-150`}
+        className={`relative w-full ${maxWidth} max-h-[90vh] flex flex-col bg-surface-elevated rounded-card border border-border shadow-xl z-10 overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-150`}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+        <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-border flex-shrink-0">
           <h3 className="font-semibold text-sm text-text">{title}</h3>
           <button
             onClick={onClose}
@@ -53,7 +53,7 @@ export const Modal: React.FC<ModalProps> = ({
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-5">{children}</div>
+        <div className="p-4 sm:p-5 overflow-y-auto">{children}</div>
       </div>
     </div>
   );

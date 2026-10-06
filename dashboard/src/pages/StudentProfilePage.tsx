@@ -243,7 +243,7 @@ export const StudentProfilePage: React.FC = () => {
 
       {/* Warning Banner if < 2 fingers enrolled */}
       {isFewFingers && (
-        <div className="p-3.5 rounded-card bg-warning-subtle text-warning border border-warning-border flex items-center justify-between text-xs">
+        <div className="p-3 sm:p-3.5 rounded-card bg-warning-subtle text-warning border border-warning-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs">
           <div className="flex items-center gap-2 font-medium">
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
             <span>
@@ -252,7 +252,7 @@ export const StudentProfilePage: React.FC = () => {
           </div>
           <button
             onClick={() => setIsEnrollOpen(true)}
-            className="px-2.5 py-1 bg-surface-elevated font-semibold rounded border border-warning-border hover:bg-surface transition-colors"
+            className="self-end sm:self-auto px-2.5 py-1 bg-surface-elevated font-semibold rounded border border-warning-border hover:bg-surface transition-colors"
           >
             Enroll 2nd finger
           </button>
@@ -260,33 +260,33 @@ export const StudentProfilePage: React.FC = () => {
       )}
 
       {/* Profile Header Card */}
-      <div className="p-6 rounded-card bg-surface-elevated border border-border flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
+      <div className="p-4 sm:p-6 rounded-card bg-surface-elevated border border-border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
+        <div className="flex items-start sm:items-center gap-3.5 sm:gap-4 w-full md:w-auto">
           <img
             src={
               student.photo_path ||
               `https://api.dicebear.com/7.x/avataaars/svg?seed=${student.student_code}`
             }
             alt={student.name}
-            className="w-16 h-16 rounded-xl border border-border object-cover bg-surface-subtle shadow-xs"
+            className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border border-border object-cover bg-surface-subtle shadow-xs flex-shrink-0"
           />
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-text">{student.name}</h1>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg sm:text-xl font-bold text-text truncate">{student.name}</h1>
               <Badge variant={student.status === 'ACTIVE' ? 'success' : 'neutral'}>
                 {student.status}
               </Badge>
             </div>
-            <div className="flex items-center gap-3 text-xs text-text-muted mt-1">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted mt-1">
               <span className="font-mono">{student.student_code}</span>
               <span>&bull;</span>
               <span className="flex items-center gap-1">
                 <Phone className="w-3.5 h-3.5" />
                 {student.phone}
               </span>
-              <span>&bull;</span>
-              <span>
-                Consent given:{' '}
+              <span className="hidden xs:inline sm:inline">&bull;</span>
+              <span className="text-[11px] sm:text-xs">
+                Consent:{' '}
                 {student.consent_given_at
                   ? new Date(student.consent_given_at).toLocaleDateString()
                   : 'Pending'}
@@ -296,18 +296,18 @@ export const StudentProfilePage: React.FC = () => {
         </div>
 
         {/* Tokens & Balance Pill */}
-        <div className="flex items-center gap-3">
-          <div className="p-3 rounded-xl bg-surface-subtle border border-border text-center">
+        <div className="flex items-center justify-between sm:justify-start gap-3 w-full md:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-border">
+          <div className="p-2.5 sm:p-3 rounded-xl bg-surface-subtle border border-border text-center flex-1 sm:flex-none">
             <span className="text-[10px] text-text-muted uppercase font-bold block">
               Remaining tokens
             </span>
-            <span className="text-2xl font-black text-accent">{student.tokens_left}</span>
+            <span className="text-xl sm:text-2xl font-black text-accent">{student.tokens_left}</span>
           </div>
 
           {student.status === 'ACTIVE' && (
             <button
               onClick={handleDeactivateStudent}
-              className="p-2 rounded-lg border border-border hover:bg-danger-subtle text-text-muted hover:text-danger transition-colors"
+              className="p-2.5 rounded-lg border border-border hover:bg-danger-subtle text-text-muted hover:text-danger transition-colors flex-shrink-0"
               title="Deactivate student and all fingerprints"
             >
               <UserX className="w-4 h-4" />
@@ -317,7 +317,7 @@ export const StudentProfilePage: React.FC = () => {
       </div>
 
       {/* Profile Navigation Tabs */}
-      <div className="border-b border-border flex items-center gap-6 text-xs font-semibold">
+      <div className="border-b border-border flex items-center gap-3 sm:gap-6 text-xs font-semibold overflow-x-auto no-scrollbar whitespace-nowrap">
         {[
           { id: 'plan', label: 'Plan & tokens', icon: CreditCard },
           { id: 'fingerprints', label: `Fingerprints (${student.finger_count})`, icon: Fingerprint },
@@ -329,7 +329,7 @@ export const StudentProfilePage: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`pb-3 flex items-center gap-2 border-b-2 transition-colors ${
+              className={`pb-3 flex items-center gap-2 border-b-2 flex-shrink-0 transition-colors ${
                 activeTab === tab.id
                   ? 'border-accent text-accent'
                   : 'border-transparent text-text-muted hover:text-text'
@@ -660,17 +660,17 @@ export const StudentProfilePage: React.FC = () => {
             />
           </div>
 
-          <div className="pt-4 flex justify-end gap-2">
+          <div className="pt-4 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2">
             <button
               type="button"
               onClick={() => setIsSellOpen(false)}
-              className="px-3 py-2 rounded-lg border border-border text-xs"
+              className="px-3.5 py-2 rounded-lg border border-border text-xs text-center hover:bg-surface-subtle transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-xs font-semibold"
+              className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-xs font-semibold text-center"
             >
               Sell plan
             </button>
@@ -722,17 +722,17 @@ export const StudentProfilePage: React.FC = () => {
             />
           </div>
 
-          <div className="pt-4 flex justify-end gap-2">
+          <div className="pt-4 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2">
             <button
               type="button"
               onClick={() => setIsAdjustOpen(false)}
-              className="px-3 py-2 rounded-lg border border-border text-xs"
+              className="px-3.5 py-2 rounded-lg border border-border text-xs text-center hover:bg-surface-subtle transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-xs font-semibold"
+              className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-xs font-semibold text-center"
             >
               Adjust tokens
             </button>
@@ -768,18 +768,18 @@ export const StudentProfilePage: React.FC = () => {
             The student's name, profile, token ledger, and past meal attendance records will be retained. Only the fingerprint template data will be erased.
           </p>
 
-          <div className="pt-4 flex justify-end gap-2">
+          <div className="pt-4 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2">
             <button
               type="button"
               onClick={() => setIsPurgeConfirmOpen(false)}
-              className="px-3 py-2 rounded-lg border border-border text-xs"
+              className="px-3.5 py-2 rounded-lg border border-border text-xs text-center hover:bg-surface-subtle transition-colors"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handlePurgeFinger}
-              className="px-4 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-xs font-semibold"
+              className="px-4 py-2 bg-danger hover:bg-danger/90 text-white rounded-lg text-xs font-semibold text-center"
             >
               Permanently purge template
             </button>

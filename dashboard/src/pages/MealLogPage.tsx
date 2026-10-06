@@ -96,7 +96,7 @@ export const MealLogPage: React.FC = () => {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
         <div>
           <h2 className="text-base font-bold text-text">Meal attendance log</h2>
           <span className="text-xs text-text-muted">
@@ -106,7 +106,7 @@ export const MealLogPage: React.FC = () => {
 
         <button
           onClick={handleExportCSV}
-          className="flex items-center gap-1.5 px-3.5 py-2 bg-surface-elevated hover:bg-surface border border-border text-text text-xs font-semibold rounded-lg shadow-xs transition-colors"
+          className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-surface-elevated hover:bg-surface border border-border text-text text-xs font-semibold rounded-lg shadow-xs transition-colors w-full sm:w-auto"
         >
           <Download className="w-4 h-4" />
           <span>Export CSV</span>
@@ -115,7 +115,7 @@ export const MealLogPage: React.FC = () => {
 
       {/* Filter Bar */}
       <div className="p-4 rounded-card bg-surface-elevated border border-border space-y-3">
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
           <div>
             <label className="block text-[11px] font-semibold text-text-muted mb-1">
               Start date

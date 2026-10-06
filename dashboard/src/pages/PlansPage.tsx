@@ -106,7 +106,7 @@ export const PlansPage: React.FC = () => {
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-bold text-text">Meal plans</h2>
           <span className="text-xs text-text-muted">
@@ -117,7 +117,7 @@ export const PlansPage: React.FC = () => {
         {isOwner && (
           <button
             onClick={openCreateModal}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-xs font-semibold rounded-lg transition-colors shadow-xs"
+            className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-xs font-semibold rounded-lg transition-colors shadow-xs w-full sm:w-auto"
           >
             <Plus className="w-4 h-4" />
             <span>Create new plan</span>
@@ -208,7 +208,7 @@ export const PlansPage: React.FC = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold mb-1">Price (₹) *</label>
               <input
@@ -233,7 +233,7 @@ export const PlansPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold mb-1">Validity (days) *</label>
               <input

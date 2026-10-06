@@ -149,9 +149,9 @@ export const DashboardPage: React.FC = () => {
       )}
 
       {/* Row 1: Four Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Card 1: Served Count */}
-        <div className="p-5 rounded-card bg-surface-elevated border border-border">
+        <div className="p-4 sm:p-5 rounded-card bg-surface-elevated border border-border">
           <div className="flex items-center justify-between text-text-muted mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">
               {metrics?.metrics?.served?.label || 'Meals served'}
@@ -178,7 +178,7 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* Card 2: Expected Count */}
-        <div className="p-5 rounded-card bg-surface-elevated border border-border">
+        <div className="p-4 sm:p-5 rounded-card bg-surface-elevated border border-border">
           <div className="flex items-center justify-between text-text-muted mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">
               {metrics?.metrics?.expected?.label || 'Dinner expected'}
@@ -200,7 +200,7 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* Card 3: Revenue Today */}
-        <div className="p-5 rounded-card bg-surface-elevated border border-border">
+        <div className="p-4 sm:p-5 rounded-card bg-surface-elevated border border-border">
           <div className="flex items-center justify-between text-text-muted mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">
               {metrics?.metrics?.revenue?.label || 'Revenue today'}
@@ -223,7 +223,7 @@ export const DashboardPage: React.FC = () => {
 
         {/* Card 4: Manual Entries (Warning if > 10%) */}
         <div
-          className={`p-5 rounded-card border transition-colors ${
+          className={`p-4 sm:p-5 rounded-card border transition-colors ${
             metrics?.metrics?.manualEntries?.isHighAlert
               ? 'bg-warning-subtle text-warning border-warning-border'
               : 'bg-surface-elevated border-border'
@@ -264,9 +264,9 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       {/* Row 2: Live Scans Panel + 7-Day Chart */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 min-w-0">
         {/* Live Scans Panel */}
-        <div className="p-5 rounded-card bg-surface-elevated border border-border flex flex-col justify-between">
+        <div className="p-4 sm:p-5 rounded-card bg-surface-elevated border border-border flex flex-col justify-between min-w-0">
           <div>
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
               <div className="flex items-center gap-2">
@@ -275,7 +275,8 @@ export const DashboardPage: React.FC = () => {
               </div>
               <span className="text-[11px] text-text-muted font-medium flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-success animate-ping" />
-                Live socket stream
+                <span className="hidden xs:inline sm:inline">Live socket stream</span>
+                <span className="xs:hidden sm:hidden">Live</span>
               </span>
             </div>
 
@@ -297,23 +298,23 @@ export const DashboardPage: React.FC = () => {
                   return (
                     <div
                       key={scan.id}
-                      className="py-2.5 flex items-center justify-between text-xs hover:bg-surface-subtle/50 px-1 rounded transition-colors"
+                      className="py-2.5 flex items-center justify-between text-xs hover:bg-surface-subtle/50 px-1 rounded transition-colors gap-2 min-w-0"
                     >
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-[11px] text-text-muted">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                        <span className="font-mono text-[10px] sm:text-[11px] text-text-muted flex-shrink-0">
                           {formatISTTime(scan.created_at)}
                         </span>
-                        <div>
-                          <span className="font-semibold text-text block">
+                        <div className="min-w-0">
+                          <span className="font-semibold text-text block truncate">
                             {scan.student_name || 'Unknown student'}
                           </span>
-                          <span className="text-[10px] text-text-muted font-mono">
+                          <span className="text-[10px] text-text-muted font-mono block truncate">
                             {scan.student_code || scan.window_name}
                           </span>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
                         <Badge variant={isManual ? 'warning' : 'accent'}>
                           {isManual ? 'Manual' : 'Finger'}
                         </Badge>
@@ -341,9 +342,9 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* 7-Day Chart Panel */}
-        <div className="p-5 rounded-card bg-surface-elevated border border-border flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
+        <div className="p-4 sm:p-5 rounded-card bg-surface-elevated border border-border flex flex-col justify-between min-w-0">
+          <div className="min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 pb-3 border-b border-border gap-1">
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-accent" />
                 <h3 className="font-bold text-sm text-text">Meals served, last 7 days</h3>
@@ -352,15 +353,15 @@ export const DashboardPage: React.FC = () => {
             </div>
 
             {loadingWeekly ? (
-              <div className="h-64 flex items-center justify-center">
+              <div className="h-60 sm:h-64 flex items-center justify-center">
                 <Skeleton className="h-56 w-full" />
               </div>
             ) : weeklyData.length === 0 ? (
-              <div className="h-64 flex items-center justify-center text-xs text-text-muted">
+              <div className="h-60 sm:h-64 flex items-center justify-center text-xs text-text-muted">
                 No meal data recorded for the past 7 days.
               </div>
             ) : (
-              <div className="h-64 w-full text-xs">
+              <div className="h-60 sm:h-64 w-full text-xs min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={weeklyData}
@@ -417,15 +418,15 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       {/* Row 3: Alert Lists (Low Balance & Expiring Plans) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 min-w-0">
         {/* Low Balance Alert List */}
-        <div className="p-5 rounded-card bg-surface-elevated border border-border">
-          <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
+        <div className="p-4 sm:p-5 rounded-card bg-surface-elevated border border-border min-w-0">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 pb-3 border-b border-border gap-2 sm:gap-0">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-warning" />
               <h3 className="font-bold text-sm text-text">Low balance</h3>
             </div>
-            <span className="text-[11px] font-semibold text-warning bg-warning-subtle px-2 py-0.5 rounded border border-warning-border">
+            <span className="text-[11px] font-semibold text-warning bg-warning-subtle px-2 py-0.5 rounded border border-warning-border self-start sm:self-auto">
               {alerts?.lowBalance?.length || 0} students with &le; 4 tokens
             </span>
           </div>
@@ -446,17 +447,17 @@ export const DashboardPage: React.FC = () => {
                 <div
                   key={item.id}
                   onClick={() => navigate(`/students/${item.id}`)}
-                  className="py-2.5 flex items-center justify-between text-xs hover:bg-surface-subtle px-2 rounded cursor-pointer transition-colors"
+                  className="py-2.5 flex items-center justify-between text-xs hover:bg-surface-subtle px-2 rounded cursor-pointer transition-colors gap-2 min-w-0"
                 >
-                  <div>
-                    <span className="font-semibold text-text block">{item.name}</span>
-                    <span className="text-[10px] text-text-muted font-mono">
+                  <div className="min-w-0">
+                    <span className="font-semibold text-text block truncate">{item.name}</span>
+                    <span className="text-[10px] text-text-muted font-mono block truncate">
                       {item.student_code}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <Badge variant="warning">
-                      {item.tokens_left} {item.tokens_left === 1 ? 'token' : 'tokens'} left
+                      {item.tokens_left} {item.tokens_left === 1 ? 'tok' : 'toks'} left
                     </Badge>
                     <ChevronRight className="w-3.5 h-3.5 text-text-muted" />
                   </div>
@@ -467,13 +468,13 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* Plans Expiring This Week */}
-        <div className="p-5 rounded-card bg-surface-elevated border border-border">
-          <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
+        <div className="p-4 sm:p-5 rounded-card bg-surface-elevated border border-border min-w-0">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 pb-3 border-b border-border gap-2 sm:gap-0">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-accent" />
               <h3 className="font-bold text-sm text-text">Plans expiring this week</h3>
             </div>
-            <span className="text-[11px] font-semibold text-accent bg-accent-subtle px-2 py-0.5 rounded border border-accent/30">
+            <span className="text-[11px] font-semibold text-accent bg-accent-subtle px-2 py-0.5 rounded border border-accent/30 self-start sm:self-auto">
               {alerts?.expiringPlans?.length || 0} plans ending soon
             </span>
           </div>
@@ -494,15 +495,15 @@ export const DashboardPage: React.FC = () => {
                 <div
                   key={item.student_id}
                   onClick={() => navigate(`/students/${item.student_id}`)}
-                  className="py-2.5 flex items-center justify-between text-xs hover:bg-surface-subtle px-2 rounded cursor-pointer transition-colors"
+                  className="py-2.5 flex items-center justify-between text-xs hover:bg-surface-subtle px-2 rounded cursor-pointer transition-colors gap-2 min-w-0"
                 >
-                  <div>
-                    <span className="font-semibold text-text block">{item.student_name}</span>
-                    <span className="text-[10px] text-text-muted">
+                  <div className="min-w-0">
+                    <span className="font-semibold text-text block truncate">{item.student_name}</span>
+                    <span className="text-[10px] text-text-muted block truncate">
                       {item.plan_name} &bull; {item.student_code}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <Badge variant="accent">Expires {item.end_date}</Badge>
                     <ChevronRight className="w-3.5 h-3.5 text-text-muted" />
                   </div>

@@ -111,7 +111,7 @@ export const StaffAuditPage: React.FC = () => {
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
         <div>
           <h2 className="text-base font-bold text-text">Staff administration & audit log</h2>
           <span className="text-xs text-text-muted">
@@ -122,7 +122,7 @@ export const StaffAuditPage: React.FC = () => {
         {activeTab === 'staff' && (
           <button
             onClick={() => setIsAddOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-xs font-semibold rounded-lg shadow-xs transition-colors"
+            className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-xs font-semibold rounded-lg shadow-xs transition-colors w-full sm:w-auto"
           >
             <UserPlus className="w-4 h-4" />
             <span>Add staff account</span>
@@ -131,10 +131,10 @@ export const StaffAuditPage: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-border flex items-center gap-6 text-xs font-semibold">
+      <div className="border-b border-border flex items-center gap-4 sm:gap-6 text-xs font-semibold overflow-x-auto whitespace-nowrap">
         <button
           onClick={() => setActiveTab('staff')}
-          className={`pb-3 flex items-center gap-2 border-b-2 transition-colors ${
+          className={`pb-3 flex items-center gap-2 border-b-2 flex-shrink-0 transition-colors ${
             activeTab === 'staff'
               ? 'border-accent text-accent'
               : 'border-transparent text-text-muted hover:text-text'
@@ -146,7 +146,7 @@ export const StaffAuditPage: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('audit')}
-          className={`pb-3 flex items-center gap-2 border-b-2 transition-colors ${
+          className={`pb-3 flex items-center gap-2 border-b-2 flex-shrink-0 transition-colors ${
             activeTab === 'audit'
               ? 'border-accent text-accent'
               : 'border-transparent text-text-muted hover:text-text'
@@ -361,18 +361,18 @@ export const StaffAuditPage: React.FC = () => {
             </select>
           </div>
 
-          <div className="pt-4 flex justify-end gap-2">
+          <div className="pt-4 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2">
             <button
               type="button"
               onClick={() => setIsAddOpen(false)}
-              className="px-3.5 py-2 rounded-lg border border-border text-xs"
+              className="px-3.5 py-2 rounded-lg border border-border text-xs text-center hover:bg-surface-subtle transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submittingStaff}
-              className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-xs font-semibold disabled:opacity-50"
+              className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-xs font-semibold disabled:opacity-50 text-center"
             >
               {submittingStaff ? 'Creating...' : 'Create account'}
             </button>

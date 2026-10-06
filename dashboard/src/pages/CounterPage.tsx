@@ -182,37 +182,37 @@ export const CounterPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6">
       {/* Top Banner: Device Offline Alert */}
       {!isDeviceOnline && (
-        <div className="p-3.5 rounded-card bg-danger-subtle text-danger border border-danger-border flex items-center justify-between animate-pulse">
+        <div className="p-3 sm:p-3.5 rounded-card bg-danger-subtle text-danger border border-danger-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 animate-pulse">
           <div className="flex items-center gap-2.5 text-xs font-semibold">
             <ShieldAlert className="w-5 h-5 flex-shrink-0" />
             <span>Device offline. Fingerprint scanner is unreachable. Please use manual marking below.</span>
           </div>
-          <Badge variant="danger">Offline</Badge>
+          <Badge variant="danger" className="self-end sm:self-auto">Offline</Badge>
         </div>
       )}
 
       {/* Header Bar: Meal Window, Served Count, Mute Toggle */}
-      <div className="flex items-center justify-between p-4 rounded-card bg-surface-elevated border border-border">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-card bg-surface-elevated border border-border">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4">
           <div className="flex items-center gap-2">
             <span className="text-xs text-text-muted font-medium">Meal window:</span>
-            <span className="text-sm font-bold text-text bg-surface-subtle px-2.5 py-1 rounded-md border border-border">
+            <span className="text-xs sm:text-sm font-bold text-text bg-surface-subtle px-2.5 py-1 rounded-md border border-border">
               {windowInfo.name}
             </span>
           </div>
-          <div className="h-4 w-[1px] bg-border" />
+          <div className="hidden sm:block h-4 w-[1px] bg-border" />
           <div className="flex items-center gap-2">
             <span className="text-xs text-text-muted font-medium">Meals served today:</span>
-            <span className="text-sm font-bold text-accent">{windowInfo.servedCount}</span>
+            <span className="text-xs sm:text-sm font-bold text-accent">{windowInfo.servedCount}</span>
           </div>
         </div>
 
         <button
           onClick={toggleSound}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-surface-subtle hover:bg-surface text-xs font-medium text-text-muted hover:text-text transition-colors"
+          className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-surface-subtle hover:bg-surface text-xs font-medium text-text-muted hover:text-text transition-colors"
           title={isMuted ? 'Unmute sound chimes' : 'Mute sound chimes'}
         >
           {isMuted ? (
@@ -230,7 +230,7 @@ export const CounterPage: React.FC = () => {
       </div>
 
       {/* Centerpiece: Large Result Card (Approved / Rejected / Idle) */}
-      <div className="min-h-[290px] flex items-center justify-center">
+      <div className="min-h-[240px] sm:min-h-[290px] flex items-center justify-center">
         {!activeResult ? (
           /* Idle State */
           <div className="w-full p-10 rounded-card bg-surface-elevated border border-border text-center flex flex-col items-center justify-center space-y-4">
@@ -246,10 +246,10 @@ export const CounterPage: React.FC = () => {
           </div>
         ) : activeResult.result === 'APPROVED' ? (
           /* Approved State */
-          <div className="w-full p-8 rounded-card bg-success-subtle border-2 border-success text-text shadow-lg animate-in zoom-in-95 duration-150">
-            <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+          <div className="w-full p-4 sm:p-8 rounded-card bg-success-subtle border-2 border-success text-text shadow-lg animate-in zoom-in-95 duration-150">
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-4 sm:gap-6">
               {/* Photo */}
-              <div className="w-28 h-28 rounded-xl bg-surface-elevated border-2 border-success-border overflow-hidden flex-shrink-0 shadow-md">
+              <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-xl bg-surface-elevated border-2 border-success-border overflow-hidden flex-shrink-0 shadow-md">
                 <img
                   src={
                     activeResult.student?.photoPath ||
@@ -263,25 +263,25 @@ export const CounterPage: React.FC = () => {
               {/* Details */}
               <div className="flex-1 text-center md:text-left space-y-2">
                 <div className="flex items-center justify-center md:justify-start gap-2">
-                  <CheckCircle2 className="w-6 h-6 text-success flex-shrink-0" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-success">
+                  <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-success flex-shrink-0" />
+                  <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-success">
                     Meal Approved &bull; {activeResult.method}
                   </span>
                 </div>
 
-                <h2 className="text-2xl font-bold text-text tracking-tight">
+                <h2 className="text-xl sm:text-2xl font-bold text-text tracking-tight">
                   {activeResult.student?.name}
                 </h2>
                 <div className="text-xs font-mono text-text-muted">
                   {activeResult.student?.studentCode} &bull; {activeResult.student?.planName}
                 </div>
 
-                <div className="pt-3 flex flex-wrap items-center justify-center md:justify-start gap-3">
+                <div className="pt-2 sm:pt-3 flex flex-wrap items-center justify-center md:justify-start gap-2 sm:gap-3">
                   <div className="px-3 py-1.5 rounded-lg bg-surface-elevated border border-success-border shadow-xs">
                     <span className="text-[10px] text-text-muted uppercase block font-semibold">
                       Tokens left
                     </span>
-                    <span className="text-lg font-black text-success">
+                    <span className="text-base sm:text-lg font-black text-success">
                       {activeResult.student?.tokensLeft}
                     </span>
                   </div>
@@ -300,10 +300,10 @@ export const CounterPage: React.FC = () => {
           </div>
         ) : (
           /* Rejected State */
-          <div className="w-full p-8 rounded-card bg-danger-subtle border-2 border-danger text-text shadow-lg animate-in zoom-in-95 duration-150">
-            <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
-              <div className="w-20 h-20 rounded-full bg-danger/10 text-danger border-2 border-danger-border flex items-center justify-center flex-shrink-0">
-                <XCircle className="w-12 h-12" />
+          <div className="w-full p-4 sm:p-8 rounded-card bg-danger-subtle border-2 border-danger text-text shadow-lg animate-in zoom-in-95 duration-150">
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-4 sm:gap-6">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-danger/10 text-danger border-2 border-danger-border flex items-center justify-center flex-shrink-0">
+                <XCircle className="w-10 h-10 sm:w-12 sm:h-12" />
               </div>
 
               <div className="flex-1 text-center md:text-left space-y-2">
@@ -519,7 +519,7 @@ export const CounterPage: React.FC = () => {
               <span className="text-[10px] text-text-muted">MockDevice driver</span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <select
                 value={simulatedStudentId}
                 onChange={(e) => setSimulatedStudentId(e.target.value)}
@@ -536,7 +536,7 @@ export const CounterPage: React.FC = () => {
                 type="button"
                 onClick={handleSimulateScan}
                 disabled={simulating || !simulatedStudentId}
-                className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded text-xs font-semibold transition-colors disabled:opacity-50"
+                className="px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded text-xs font-semibold transition-colors disabled:opacity-50 text-center"
               >
                 {simulating ? 'Scanning...' : 'Scan finger'}
               </button>
