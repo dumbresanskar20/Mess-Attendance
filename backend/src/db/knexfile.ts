@@ -2,20 +2,50 @@ import type { Knex } from 'knex';
 import path from 'path';
 import { env } from '../config/env';
 
-const isRemoteHost = env.DB_HOST && !['127.0.0.1', 'localhost'].includes(env.DB_HOST);
+function parseDatabaseUrl(urlStr?: string) {
+  if (!urlStr) return null;
+  try {
+    const parsed = new URL(urlStr);
+    return {
+      host: parsed.hostname,
+      port: parsed.port ? Number(parsed.port) : 3306,
+      user: decodeURIComponent(parsed.username || ''),
+      password: decodeURIComponent(parsed.password || ''),
+      database: parsed.pathname.replace(/^\//, ''),
+    };
+  } catch {
+    return null;
+  }
+}
+
+const dbUrlConfig = parseDatabaseUrl(
+  env.DATABASE_URL || process.env.DATABASE_URL || process.env.MYSQL_URL
+);
+
+const isRemoteHost = dbUrlConfig
+  ? !['127.0.0.1', 'localhost'].includes(dbUrlConfig.host)
+  : env.DB_HOST && !['127.0.0.1', 'localhost'].includes(env.DB_HOST);
 const useSsl = env.DB_SSL || isRemoteHost;
 
-const baseConnection: any = {
-  host: env.DB_HOST,
-  port: env.DB_PORT,
-  user: env.DB_USER,
-  password: env.DB_PASSWORD,
-  database: env.DB_NAME,
-  timezone: '+00:00', // DB stores UTC
-  charset: 'utf8mb4',
-  multipleStatements: true,
-  ...(useSsl ? { ssl: { rejectUnauthorized: false } } : {}),
-};
+const baseConnection: any = dbUrlConfig
+  ? {
+      ...dbUrlConfig,
+      timezone: '+00:00',
+      charset: 'utf8mb4',
+      multipleStatements: true,
+      ...(useSsl ? { ssl: { rejectUnauthorized: false } } : {}),
+    }
+  : {
+      host: env.DB_HOST,
+      port: env.DB_PORT,
+      user: env.DB_USER,
+      password: env.DB_PASSWORD,
+      database: env.DB_NAME,
+      timezone: '+00:00', // DB stores UTC
+      charset: 'utf8mb4',
+      multipleStatements: true,
+      ...(useSsl ? { ssl: { rejectUnauthorized: false } } : {}),
+    };
 
 const config: { [key: string]: Knex.Config } = {
   development: {

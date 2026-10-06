@@ -59,6 +59,7 @@ export function createApp(): Express {
     res.json({
       status: isDbConnected ? 'UP' : 'DEGRADED',
       database: isDbConnected ? 'CONNECTED' : 'DISCONNECTED',
+      databaseHost: env.DATABASE_URL ? 'remote (DATABASE_URL)' : env.DB_HOST,
       timestamp: new Date().toISOString(),
       timezone: env.APP_TIMEZONE,
     });

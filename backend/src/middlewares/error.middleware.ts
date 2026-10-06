@@ -88,6 +88,24 @@ export function errorHandler(
     return;
   }
 
+  // Handle Database Connection Failures (e.g. remote MySQL unreachable or not configured)
+  if (
+    err.code === 'ECONNREFUSED' ||
+    err.code === 'ENOTFOUND' ||
+    err.code === 'ETIMEDOUT' ||
+    err.code === 'ER_ACCESS_DENIED_ERROR' ||
+    (typeof err.message === 'string' &&
+      (err.message.includes('ECONNREFUSED') || err.message.includes('ETIMEDOUT')))
+  ) {
+    res.status(503).json({
+      error: {
+        code: 'DATABASE_CONNECTION_ERROR',
+        message: `Database connection failed (${err.code || 'ECONNREFUSED'}). Please configure your MySQL database credentials (DATABASE_URL or DB_HOST, DB_USER, DB_PASSWORD, DB_NAME) in your Render environment variables.`,
+      },
+    });
+    return;
+  }
+
   // Fallback 500 error
   console.error('Unhandled 500 error in test/dev:', err);
   res.status(500).json({

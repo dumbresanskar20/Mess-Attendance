@@ -21,6 +21,7 @@ const envSchema = z.object({
   APP_TIMEZONE: z.string().default('Asia/Kolkata'),
 
   // Database
+  DATABASE_URL: z.string().optional().or(z.literal('')),
   DB_HOST: z.string().default('127.0.0.1'),
   DB_PORT: z.coerce.number().default(3306),
   DB_USER: z.string().default('mess_user'),
