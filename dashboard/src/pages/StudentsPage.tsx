@@ -13,6 +13,8 @@ import { apiRequest } from '../api/client';
 import { Badge } from '../components/common/Badge';
 import { Skeleton } from '../components/common/Skeleton';
 import { Modal } from '../components/common/Modal';
+import { FingerprintScanModal } from '../components/biometrics/FingerprintScanModal';
+import { BiometricCaptureResult } from '../utils/biometrics';
 import { Student } from '../types';
 
 export const StudentsPage: React.FC = () => {
@@ -28,6 +30,7 @@ export const StudentsPage: React.FC = () => {
 
   // Add Student Modal State
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [newCode, setNewCode] = useState('');
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
@@ -69,28 +72,48 @@ export const StudentsPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const handleAddStudent = async (e: React.FormEvent) => {
+  const handleAddStudent = (e: React.FormEvent) => {
     e.preventDefault();
     setAddError(null);
 
     if (!newConsent) {
-      setAddError('Consent is required before adding a student.');
+      setAddError('Informed biometric consent is mandatory before registering a student.');
       return;
     }
 
+    if (!newCode.trim() || !newName.trim() || !newPhone.trim()) {
+      setAddError('Student code, name, and phone number are required.');
+      return;
+    }
+
+    // Do NOT create student yet! Open the Fingerprint Scanning Modal
+    setIsScanModalOpen(true);
+  };
+
+  const handleFingerprintCaptured = async (biometric: BiometricCaptureResult) => {
     setSubmitting(true);
+    setAddError(null);
+
     try {
+      // Create student AND enroll biometric atomically in single payload
       const created = await apiRequest('/students', {
         method: 'POST',
         body: JSON.stringify({
-          student_code: newCode,
-          name: newName,
-          phone: newPhone,
-          photo_path: newPhoto || null,
-          consent_given: newConsent,
+          student_code: newCode.trim(),
+          name: newName.trim(),
+          phone: newPhone.trim(),
+          photo_path: newPhoto ? newPhoto.trim() : null,
+          consent_given: true,
+          fingerprint: {
+            finger_label: biometric.fingerLabel,
+            raw_template: biometric.rawTemplate,
+            source: biometric.source,
+            device_user_id: biometric.deviceUserId,
+          },
         }),
       });
 
+      setIsScanModalOpen(false);
       setIsAddOpen(false);
       setNewCode('');
       setNewName('');
@@ -99,7 +122,8 @@ export const StudentsPage: React.FC = () => {
       setNewConsent(false);
       navigate(`/students/${created.id}`);
     } catch (err: any) {
-      setAddError(err.message || 'Failed to create student');
+      setAddError(err.message || 'Failed to register student with fingerprint.');
+      setIsScanModalOpen(false);
     } finally {
       setSubmitting(false);
     }
@@ -397,13 +421,23 @@ export const StudentsPage: React.FC = () => {
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-xs font-semibold transition-colors disabled:opacity-50"
             >
-              {submitting ? 'Creating...' : 'Register student'}
+              <Fingerprint className="w-3.5 h-3.5" />
+              <span>{submitting ? 'Registering...' : 'Scan fingerprint & register'}</span>
             </button>
           </div>
         </form>
       </Modal>
+
+      {/* Biometric Fingerprint Scanning Popup */}
+      <FingerprintScanModal
+        isOpen={isScanModalOpen}
+        onClose={() => setIsScanModalOpen(false)}
+        studentName={newName}
+        studentCode={newCode}
+        onSuccess={handleFingerprintCaptured}
+      />
     </div>
   );
 };

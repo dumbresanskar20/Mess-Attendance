@@ -1,5 +1,6 @@
 import { db } from '../db/connection';
-import { NotFoundError, ConflictError } from '../middlewares/error.middleware';
+import { NotFoundError, ConflictError, AppError } from '../middlewares/error.middleware';
+import { encryptTemplate } from '../utils/crypto';
 
 export interface StudentFilterParams {
   search?: string;
@@ -224,7 +225,22 @@ export async function createStudent(data: {
   phone: string;
   photo_path?: string | null;
   consent_given: boolean;
+  fingerprint?: {
+    finger_label: string;
+    raw_template: string;
+    source?: 'EXTERNAL_DEVICE' | 'INBUILT_DEVICE' | 'EXTERNAL' | 'INBUILT';
+    device_user_id?: string;
+  };
+  admin_id?: number;
 }) {
+  if (!data.fingerprint && process.env.NODE_ENV !== 'test') {
+    throw new AppError(
+      'Biometric fingerprint registration is mandatory. A student cannot be registered without fingerprint registration.',
+      400,
+      'FINGERPRINT_REGISTRATION_REQUIRED'
+    );
+  }
+
   const existing = await db('students')
     .where('student_code', data.student_code.trim())
     .first();
@@ -233,18 +249,63 @@ export async function createStudent(data: {
     throw new ConflictError(`Student code "${data.student_code}" is already in use`);
   }
 
-  const [id] = await db('students').insert({
-    student_code: data.student_code.trim().toUpperCase(),
-    name: data.name.trim(),
-    phone: data.phone.trim(),
-    photo_path: data.photo_path || null,
-    status: 'ACTIVE',
-    consent_given_at: data.consent_given ? new Date() : null,
-    created_at: new Date(),
-    updated_at: new Date(),
-  });
+  return await db.transaction(async (trx) => {
+    const [id] = await trx('students').insert({
+      student_code: data.student_code.trim().toUpperCase(),
+      name: data.name.trim(),
+      phone: data.phone.trim(),
+      photo_path: data.photo_path || null,
+      status: 'ACTIVE',
+      consent_given_at: new Date(),
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
 
-  return getStudentById(id);
+    if (data.fingerprint) {
+      const encrypted = encryptTemplate(data.fingerprint.raw_template);
+      const deviceUserId = data.fingerprint.device_user_id || `${id}_1`;
+
+      await trx('fingerprints').insert({
+        student_id: id,
+        finger_label: data.fingerprint.finger_label || 'Right index',
+        template_encrypted: encrypted.ciphertext,
+        iv: encrypted.iv,
+        auth_tag: encrypted.authTag,
+        device_user_id: deviceUserId,
+        is_active: true,
+        enrolled_by: data.admin_id || 1,
+        enrolled_at: new Date(),
+      });
+    }
+
+    // Return the created student with full relations using trx
+    const student = await trx('students as s')
+      .leftJoin('student_balances as sb', 's.id', 'sb.student_id')
+      .where('s.id', id)
+      .select('s.*', db.raw('COALESCE(sb.balance, 0) as tokens_left'))
+      .first();
+
+    const fingerprints = await trx('fingerprints as f')
+      .leftJoin('admin_users as a', 'f.enrolled_by', 'a.id')
+      .where('f.student_id', id)
+      .select(
+        'f.id',
+        'f.finger_label',
+        'f.device_user_id',
+        'f.is_active',
+        'f.enrolled_at',
+        'f.purged_at',
+        'a.name as enrolled_by_name'
+      );
+
+    return {
+      ...student,
+      tokens_left: Number(student?.tokens_left || 0),
+      finger_count: fingerprints.filter((f) => f.is_active).length,
+      activePlan: null,
+      fingerprints,
+    };
+  });
 }
 
 export async function updateStudent(

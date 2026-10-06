@@ -2,9 +2,16 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { z } from 'zod';
 
-// Load .env from backend or root directory
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
-dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
+// Load .env from various possible working directories
+const possibleEnvPaths = [
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(process.cwd(), '../.env'),
+  path.resolve(__dirname, '../../.env'),
+  path.resolve(__dirname, '../../../.env'),
+];
+for (const envPath of possibleEnvPaths) {
+  dotenv.config({ path: envPath });
+}
 
 const envSchema = z.object({
   PORT: z.coerce.number().default(4000),
@@ -17,6 +24,12 @@ const envSchema = z.object({
   DB_USER: z.string().default('mess_user'),
   DB_PASSWORD: z.string().default('mess_secure_password_2026'),
   DB_NAME: z.string().default('mess_tokens'),
+  DB_SSL: z
+    .string()
+    .optional()
+    .transform((val) => val === 'true')
+    .or(z.boolean())
+    .default(false),
 
   // Auth
   JWT_ACCESS_SECRET: z.string().min(16).default('super_secret_mess_access_jwt_key_32_chars_long!'),

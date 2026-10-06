@@ -50,7 +50,7 @@ export async function getMonthlyReportData(year?: number, month?: number) {
     .where('ml.result', 'APPROVED')
     .where('ml.meal_date', '>=', startDate)
     .where('ml.meal_date', '<=', endDate)
-    .select(db.raw('COALESCE(a.name, "System / Unspecified") as staff_name'))
+    .select(db.raw("COALESCE(a.name, 'System / Unspecified') as staff_name"))
     .count('ml.id as count')
     .groupBy('staff_name')
     .orderBy('count', 'desc');

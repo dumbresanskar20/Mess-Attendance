@@ -262,6 +262,37 @@ router.get(
   }
 );
 
+// POST /api/device/enroll (Trigger external biometric device enrollment)
+router.post(
+  '/device/enroll',
+  authenticateJWT,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { deviceUserId, fingerIndex } = req.body;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+
+      const bridgeRes = await fetch(`${env.DEVICE_BRIDGE_URL}/enroll`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceUserId, fingerIndex: fingerIndex || 1 }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (!bridgeRes.ok) {
+        const errorData: any = await bridgeRes.json().catch(() => ({}));
+        throw new AppError(errorData.error || 'External device enrollment failed', bridgeRes.status);
+      }
+
+      const data = await bridgeRes.json();
+      res.json(data);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // POST /api/device/sync (Re-upload all active templates to device)
 router.post(
   '/device/sync',

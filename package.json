@@ -17,6 +17,7 @@
     "test": "npm --prefix backend run test",
     "migrate": "npm --prefix backend run migrate",
     "seed": "npm --prefix backend run seed",
+    "clean": "npm --prefix backend run clean",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down"
   },

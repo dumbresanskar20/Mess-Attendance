@@ -11,7 +11,15 @@ const createStudentSchema = z.object({
   name: z.string().min(2).max(255),
   phone: z.string().min(10).max(20),
   photo_path: z.string().url().or(z.string().min(1)).optional().nullable(),
-  consent_given: z.boolean().default(false),
+  consent_given: z.boolean().default(true),
+  fingerprint: z
+    .object({
+      finger_label: z.string().min(2).max(100),
+      raw_template: z.string().min(5),
+      source: z.enum(['EXTERNAL_DEVICE', 'INBUILT_DEVICE', 'EXTERNAL', 'INBUILT']).optional(),
+      device_user_id: z.string().optional(),
+    })
+    .optional(),
 });
 
 const updateStudentSchema = z.object({
@@ -55,7 +63,10 @@ router.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const parsed = createStudentSchema.parse(req.body);
-      const student = await studentService.createStudent(parsed);
+      const student = await studentService.createStudent({
+        ...parsed,
+        admin_id: req.user!.id,
+      });
 
       await logAudit({
         adminId: req.user!.id,
@@ -65,6 +76,21 @@ router.post(
         detail: { student_code: student.student_code, name: student.name },
         ip: getClientIp(req),
       });
+
+      if (parsed.fingerprint) {
+        await logAudit({
+          adminId: req.user!.id,
+          action: 'FINGERPRINT_ENROLL',
+          targetType: 'FINGERPRINT',
+          targetId: String(student.fingerprints?.[0]?.id || student.id),
+          detail: {
+            studentId: student.id,
+            finger_label: parsed.fingerprint.finger_label,
+            source: parsed.fingerprint.source || 'INBUILT_DEVICE',
+          },
+          ip: getClientIp(req),
+        });
+      }
 
       res.status(201).json(student);
     } catch (error) {

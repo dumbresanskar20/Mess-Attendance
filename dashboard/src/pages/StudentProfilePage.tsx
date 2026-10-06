@@ -21,6 +21,8 @@ import { useAuth } from '../context/AuthContext';
 import { Badge } from '../components/common/Badge';
 import { Skeleton } from '../components/common/Skeleton';
 import { Modal } from '../components/common/Modal';
+import { FingerprintScanModal } from '../components/biometrics/FingerprintScanModal';
+import { BiometricCaptureResult } from '../utils/biometrics';
 import { Student, Fingerprint as FingerprintType, Plan, MealLogItem, TokenLedgerItem } from '../types';
 
 export const StudentProfilePage: React.FC = () => {
@@ -145,13 +147,14 @@ export const StudentProfilePage: React.FC = () => {
   };
 
   // Enroll Fingerprint
-  const handleEnrollFinger = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleEnrollFinger = async (biometric: BiometricCaptureResult) => {
     try {
       await apiRequest(`/students/${id}/fingerprints/enroll`, {
         method: 'POST',
         body: JSON.stringify({
-          finger_label: enrollFingerLabel,
+          finger_label: biometric.fingerLabel,
+          raw_template: biometric.rawTemplate,
+          device_user_id: biometric.deviceUserId,
         }),
       });
       setIsEnrollOpen(false);
@@ -738,52 +741,14 @@ export const StudentProfilePage: React.FC = () => {
       </Modal>
 
       {/* Modal: Enroll Fingerprint */}
-      <Modal
+      <FingerprintScanModal
         isOpen={isEnrollOpen}
         onClose={() => setIsEnrollOpen(false)}
-        title="Enroll biometric fingerprint"
-      >
-        <form onSubmit={handleEnrollFinger} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold mb-1">Finger label *</label>
-            <select
-              value={enrollFingerLabel}
-              onChange={(e) => setEnrollFingerLabel(e.target.value)}
-              className="w-full px-3 py-2 bg-surface text-xs rounded-lg border border-border"
-            >
-              <option value="Right index">Right index</option>
-              <option value="Right thumb">Right thumb</option>
-              <option value="Left index">Left index</option>
-              <option value="Left thumb">Left thumb</option>
-              <option value="Right middle">Right middle</option>
-              <option value="Left middle">Left middle</option>
-            </select>
-          </div>
-
-          <div className="p-3 rounded-lg bg-surface-subtle border border-border text-xs text-text-muted space-y-1">
-            <p className="font-semibold text-text">Enrollment process:</p>
-            <p>1. Ensure student is at the counter.</p>
-            <p>2. Ask student to place finger on scanner 3 times.</p>
-            <p>3. Template is encrypted with AES-256-GCM and stored in database.</p>
-          </div>
-
-          <div className="pt-4 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setIsEnrollOpen(false)}
-              className="px-3 py-2 rounded-lg border border-border text-xs"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-xs font-semibold"
-            >
-              Capture & enroll
-            </button>
-          </div>
-        </form>
-      </Modal>
+        studentName={student.name}
+        studentCode={student.student_code}
+        fingerLabel={enrollFingerLabel}
+        onSuccess={handleEnrollFinger}
+      />
 
       {/* Modal: Confirm Purge (OWNER only) */}
       <Modal
