@@ -185,21 +185,24 @@ export const CounterPage: React.FC = () => {
     }
   };
 
-  // Dev: Simulate Scan
+  // Dev: Simulate Scan (triggers bridge mock scan with HMAC signing)
   const handleSimulateScan = async () => {
     if (!simulatedStudentId) return;
     setSimulating(true);
     try {
-      const outcome = await apiRequest<ScanOutcome>('/scan', {
+      const stu = allStudents.find((s) => String(s.id) === String(simulatedStudentId));
+      const deviceUserId = stu ? `${stu.id}_1` : String(simulatedStudentId);
+
+      await fetch('http://localhost:4001/simulate-scan', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          studentId: Number(simulatedStudentId),
-          simulatedWindowId: selectedWindowId || undefined,
+          deviceUserId,
+          deviceId: 'DEV-COUNTER-01',
         }),
       });
-      handleNewScanOutcome(outcome);
     } catch (err: any) {
-      console.error('Simulate scan failed:', err);
+      console.error('Bridge simulate scan error:', err);
     } finally {
       setSimulating(false);
     }

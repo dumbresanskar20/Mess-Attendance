@@ -48,9 +48,7 @@ beforeAll(async () => {
   unconsentedStudentId = uId;
 });
 
-afterAll(async () => {
-  await db.destroy();
-});
+// connection managed globally
 
 describe('Phase 4: Device Layer & Fingerprint Management', () => {
   let enrolledFingerId: number;

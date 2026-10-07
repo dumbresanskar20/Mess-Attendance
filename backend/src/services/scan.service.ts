@@ -10,6 +10,7 @@ export interface ScanInput {
   fingerprintId?: string | number;
   studentId?: string | number;
   deviceId?: string;
+  eventId?: string;
   simulatedWindowId?: number; // Allowed in dev/test for simulating specific windows
 }
 
@@ -37,6 +38,7 @@ export interface ScanResultOutput {
     planEndDate: string;
   };
   timestamp: string;
+  isDuplicate?: boolean;
 }
 
 /**
@@ -90,12 +92,63 @@ export function formatRejectMessage(reason: RejectReason, details?: any): string
 
 /**
  * Executes the unified scan meal verification in a single atomic database transaction.
+ * Supports idempotency via unique event_id.
  */
 export async function processScan(input: ScanInput): Promise<ScanResultOutput> {
   const todayStr = getCurrentISTDateString();
   const deviceId = input.deviceId || 'DEV-COUNTER-01';
 
   return await db.transaction(async (trx) => {
+    // 0. Idempotency Check: if eventId is provided and already processed, return existing outcome
+    if (input.eventId) {
+      const existingMeal = await trx('meal_log')
+        .where('event_id', input.eventId)
+        .first();
+
+      if (existingMeal) {
+        let studentDetails: any = undefined;
+        if (existingMeal.student_id) {
+          const s = await trx('students').where('id', existingMeal.student_id).first();
+          const [balRow] = await trx('student_balances').where('student_id', existingMeal.student_id);
+          const activePlan = await trx('student_plans as sp')
+            .join('plans as p', 'sp.plan_id', 'p.id')
+            .where('sp.student_id', existingMeal.student_id)
+            .select('p.name as plan_name', 'sp.end_date')
+            .orderBy('sp.created_at', 'desc')
+            .first();
+
+          if (s) {
+            studentDetails = {
+              id: s.id,
+              studentCode: s.student_code,
+              name: s.name,
+              photoPath: s.photo_path,
+              planName: activePlan?.plan_name || 'Active Plan',
+              tokensLeft: Number(balRow?.balance || 0),
+              planEndDate: activePlan?.end_date || todayStr,
+            };
+          }
+        }
+
+        const outcome: ScanResultOutput = {
+          result: existingMeal.result as MealResult,
+          rejectReason: existingMeal.reject_reason as RejectReason | null,
+          message:
+            existingMeal.result === 'APPROVED'
+              ? `Meal approved for ${studentDetails?.name || 'Student'}`
+              : formatRejectMessage(existingMeal.reject_reason || 'Scan rejected'),
+          mealLogId: existingMeal.id,
+          method: existingMeal.method as MealMethod,
+          student: studentDetails,
+          timestamp: new Date(existingMeal.created_at).toISOString(),
+          isDuplicate: true,
+        };
+
+        emitScanResult(outcome);
+        return outcome;
+      }
+    }
+
     // 1. Resolve Meal Window
     const activeWindow = await getActiveMealWindow(trx, input.simulatedWindowId);
     const fallbackWindow = activeWindow || (await trx('meal_windows').first()) || { id: 1, name: 'General' };
@@ -130,6 +183,7 @@ export async function processScan(input: ScanInput): Promise<ScanResultOutput> {
     // Step 1: No match found
     if (!student) {
       const [mealLogId] = await trx('meal_log').insert({
+        event_id: input.eventId || null,
         student_id: null,
         meal_window_id: fallbackWindow.id,
         meal_date: todayStr,
@@ -160,6 +214,7 @@ export async function processScan(input: ScanInput): Promise<ScanResultOutput> {
     // Step 2: Student is inactive
     if (student.status !== 'ACTIVE') {
       const [mealLogId] = await trx('meal_log').insert({
+        event_id: input.eventId || null,
         student_id: student.id,
         meal_window_id: fallbackWindow.id,
         meal_date: todayStr,
@@ -196,6 +251,7 @@ export async function processScan(input: ScanInput): Promise<ScanResultOutput> {
     // Step 3: Outside active meal window
     if (!activeWindow) {
       const [mealLogId] = await trx('meal_log').insert({
+        event_id: input.eventId || null,
         student_id: student.id,
         meal_window_id: fallbackWindow.id,
         meal_date: todayStr,
@@ -249,6 +305,7 @@ export async function processScan(input: ScanInput): Promise<ScanResultOutput> {
 
     if (recentApprovedMeal) {
       const [mealLogId] = await trx('meal_log').insert({
+        event_id: input.eventId || null,
         student_id: student.id,
         meal_window_id: activeWindow.id,
         meal_date: todayStr,
@@ -301,6 +358,7 @@ export async function processScan(input: ScanInput): Promise<ScanResultOutput> {
         .first();
 
       const [mealLogId] = await trx('meal_log').insert({
+        event_id: input.eventId || null,
         student_id: student.id,
         meal_window_id: activeWindow.id,
         meal_date: todayStr,
@@ -340,6 +398,7 @@ export async function processScan(input: ScanInput): Promise<ScanResultOutput> {
 
     if (balance <= 0) {
       const [mealLogId] = await trx('meal_log').insert({
+        event_id: input.eventId || null,
         student_id: student.id,
         meal_window_id: activeWindow.id,
         meal_date: todayStr,
@@ -375,6 +434,7 @@ export async function processScan(input: ScanInput): Promise<ScanResultOutput> {
 
     // Step 8 & 9: Insert APPROVED meal_log & token_ledger deduction
     const [mealLogId] = await trx('meal_log').insert({
+      event_id: input.eventId || null,
       student_id: student.id,
       meal_window_id: activeWindow.id,
       meal_date: todayStr,
@@ -417,8 +477,28 @@ export async function processScan(input: ScanInput): Promise<ScanResultOutput> {
 
     emitScanResult(outcome);
     return outcome;
-  }).catch((err) => {
+  }).catch(async (err) => {
     if (err.code === 'ER_DUP_ENTRY' || err.message?.includes('Duplicate entry')) {
+      if (input.eventId) {
+        const existingMeal = await db('meal_log').where('event_id', input.eventId).first();
+        if (existingMeal) {
+          const outcome: ScanResultOutput = {
+            result: existingMeal.result as MealResult,
+            rejectReason: existingMeal.reject_reason as RejectReason | null,
+            message:
+              existingMeal.result === 'APPROVED'
+                ? `Meal approved`
+                : formatRejectMessage(existingMeal.reject_reason || 'Scan rejected'),
+            mealLogId: existingMeal.id,
+            method: existingMeal.method as MealMethod,
+            timestamp: new Date(existingMeal.created_at).toISOString(),
+            isDuplicate: true,
+          };
+          emitScanResult(outcome);
+          return outcome;
+        }
+      }
+
       const outcome: ScanResultOutput = {
         result: 'REJECTED',
         rejectReason: 'ALREADY_ATE',

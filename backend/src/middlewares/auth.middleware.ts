@@ -3,6 +3,7 @@ import { verifyAccessToken } from '../utils/jwt';
 import { UnauthorizedError, ForbiddenError } from './error.middleware';
 import { AdminRole, AuthUserPayload } from '../types';
 import { db } from '../db/connection';
+import { COOKIE_NAMES } from '../utils/cookies';
 
 declare global {
   namespace Express {
@@ -17,14 +18,19 @@ export async function authenticateJWT(
   res: Response,
   next: NextFunction
 ): Promise<void> {
-  const authHeader = req.headers.authorization;
+  let token: string | undefined;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  } else if (req.cookies && req.cookies[COOKIE_NAMES.ACCESS_TOKEN]) {
+    token = req.cookies[COOKIE_NAMES.ACCESS_TOKEN];
+  }
+
+  if (!token) {
     next(new UnauthorizedError('Missing or malformed Authorization header'));
     return;
   }
-
-  const token = authHeader.split(' ')[1];
 
   try {
     const payload = verifyAccessToken(token);
@@ -44,6 +50,7 @@ export async function authenticateJWT(
       email: user.email,
       name: user.name,
       role: user.role as AdminRole,
+      mustChangePassword: Boolean(user.must_change_password),
     };
 
     next();
@@ -54,7 +61,7 @@ export async function authenticateJWT(
     }
     next(new UnauthorizedError('Invalid access token'));
   }
-}
+};
 
 export function requireRole(roles: AdminRole | AdminRole[]) {
   const allowedRoles = Array.isArray(roles) ? roles : [roles];

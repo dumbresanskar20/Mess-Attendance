@@ -13,11 +13,14 @@ import staffRoutes from './routes/staff.routes';
 import auditRoutes from './routes/audit.routes';
 import mealRoutes from './routes/meal.routes';
 import fingerprintRoutes from './routes/fingerprint.routes';
+import deviceRoutes from './routes/device.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import reportRoutes from './routes/report.routes';
 import { checkDatabaseConnection } from './db/connection';
 
+import cookieParser from 'cookie-parser';
 import { isOriginAllowed } from './config/cors';
+import { csrfProtection } from './middlewares/csrf.middleware';
 
 export function createApp(): Express {
   const app = express();
@@ -37,9 +40,13 @@ export function createApp(): Express {
     })
   );
 
-  // Body parser
+  // Body & Cookie parsers
+  app.use(cookieParser());
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+
+  // CSRF Protection
+  app.use(csrfProtection);
 
   // Logging (in non-test environments)
   if (env.NODE_ENV !== 'test') {
@@ -73,6 +80,7 @@ export function createApp(): Express {
   app.use('/api/staff', staffRoutes);
   app.use('/api/audit', auditRoutes);
   app.use('/api', mealRoutes);
+  app.use('/api', deviceRoutes);
   app.use('/api', fingerprintRoutes);
   app.use('/api/dashboard', dashboardRoutes);
   app.use('/api/reports', reportRoutes);

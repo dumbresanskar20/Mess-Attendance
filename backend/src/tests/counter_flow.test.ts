@@ -2,14 +2,58 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../app';
 import { db } from '../db/connection';
+import { calculateDeviceSignature } from '../utils/deviceSignature';
 
 const app = createApp();
+
+const DEVICE_ID = 'DEV-COUNTER-01';
+const DEVICE_SECRET = 'mock-device-secret-key-2026';
 
 let counterToken: string;
 let ownerToken: string;
 let counterUserId: number;
 
+function postScan(payload: any) {
+  const timestamp = new Date().toISOString();
+  const signature = calculateDeviceSignature(DEVICE_SECRET, timestamp, payload);
+  return request(app)
+    .post('/api/scan')
+    .set({
+      'X-Device-Id': DEVICE_ID,
+      'X-Timestamp': timestamp,
+      'X-Signature': signature,
+    })
+    .send(payload);
+}
+
 beforeAll(async () => {
+  const hasDevices = await db.schema.hasTable('devices');
+  if (!hasDevices) {
+    await db.schema.createTable('devices', (table) => {
+      table.bigIncrements('id').primary();
+      table.string('device_id', 100).notNullable().unique();
+      table.string('name', 255).notNullable();
+      table.string('secret_hash', 255).notNullable();
+      table.boolean('is_active').notNullable().defaultTo(true);
+      table.dateTime('last_heartbeat_at', { precision: 3 }).nullable();
+      table.dateTime('created_at', { precision: 3 }).notNullable().defaultTo(db.fn.now(3));
+      table.dateTime('updated_at', { precision: 3 }).notNullable().defaultTo(db.fn.now(3));
+    });
+  }
+
+  const existingDevice = await db('devices').where('device_id', DEVICE_ID).first();
+  if (!existingDevice) {
+    await db('devices').insert({
+      device_id: DEVICE_ID,
+      name: 'Counter 1 Scanner Bridge',
+      secret_hash: DEVICE_SECRET,
+      is_active: true,
+      last_heartbeat_at: new Date(),
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+  }
+
   const counterRes = await request(app).post('/api/auth/login').send({
     email: 'counter@mess.local',
     password: 'Counter@123456',
@@ -24,9 +68,7 @@ beforeAll(async () => {
   ownerToken = ownerRes.body.accessToken;
 });
 
-afterAll(async () => {
-  await db.destroy();
-});
+// connection managed globally
 
 describe('Counter Screen End-to-End Flow (Approved, Rejected, Manual Fallback)', () => {
   let approvedStudentId: number;
@@ -126,13 +168,11 @@ describe('Counter Screen End-to-End Flow (Approved, Rejected, Manual Fallback)',
     expect(initialBalance).toBe(30);
 
     // Simulate scan on deviceUserId
-    const scanRes = await request(app)
-      .post('/api/scan')
-      .send({
-        deviceUserId: devUserId1,
-        deviceId: 'MOCK_DEV_01',
-        simulatedWindowId: 1, // Lunch window
-      });
+    const scanRes = await postScan({
+      deviceUserId: devUserId1,
+      deviceId: 'DEV-COUNTER-01',
+      simulatedWindowId: 1, // Lunch window
+    });
 
     expect(scanRes.status).toBe(200);
     expect(scanRes.body.result).toBe('APPROVED');
@@ -162,13 +202,11 @@ describe('Counter Screen End-to-End Flow (Approved, Rejected, Manual Fallback)',
 
   it('E2E Flow 2: Should reject scan on immediate repeat scan (ALREADY_ATE)', async () => {
     // Same student scans again within the same window
-    const repeatRes = await request(app)
-      .post('/api/scan')
-      .send({
-        deviceUserId: devUserId1,
-        deviceId: 'MOCK_DEV_01',
-        simulatedWindowId: 1,
-      });
+    const repeatRes = await postScan({
+      deviceUserId: devUserId1,
+      deviceId: 'DEV-COUNTER-01',
+      simulatedWindowId: 1,
+    });
 
     expect(repeatRes.status).toBe(200);
     expect(repeatRes.body.result).toBe('REJECTED');
@@ -181,12 +219,10 @@ describe('Counter Screen End-to-End Flow (Approved, Rejected, Manual Fallback)',
     const inactiveStudent = await db('students').where('status', 'INACTIVE').first();
     expect(inactiveStudent).toBeDefined();
 
-    const inactiveRes = await request(app)
-      .post('/api/scan')
-      .send({
-        studentId: inactiveStudent.id,
-        simulatedWindowId: 1,
-      });
+    const inactiveRes = await postScan({
+      studentId: inactiveStudent.id,
+      simulatedWindowId: 1,
+    });
 
     expect(inactiveRes.status).toBe(200);
     expect(inactiveRes.body.result).toBe('REJECTED');
@@ -194,13 +230,11 @@ describe('Counter Screen End-to-End Flow (Approved, Rejected, Manual Fallback)',
   });
 
   it('E2E Flow 4: Should reject scan for unregistered device user ID (NO_MATCH)', async () => {
-    const unknownRes = await request(app)
-      .post('/api/scan')
-      .send({
-        deviceUserId: 'UNKNOWN_FINGER_9999',
-        deviceId: 'MOCK_DEV_01',
-        simulatedWindowId: 1,
-      });
+    const unknownRes = await postScan({
+      deviceUserId: 'UNKNOWN_FINGER_9999',
+      deviceId: 'DEV-COUNTER-01',
+      simulatedWindowId: 1,
+    });
 
     expect(unknownRes.status).toBe(200);
     expect(unknownRes.body.result).toBe('REJECTED');

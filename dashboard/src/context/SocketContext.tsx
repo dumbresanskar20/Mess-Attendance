@@ -27,13 +27,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   const fetchDeviceStatus = async () => {
-    const token = localStorage.getItem('access_token');
-    if (!token) return;
-
     try {
       const data = await apiRequest<DeviceStatus>('/device/status');
       setDeviceStatus(data);
-    } catch (e) {
+    } catch {
       // If endpoint fails, keep current state or fallback
     }
   };
@@ -61,6 +58,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const s = io(socketUrl, {
       transports: ['websocket', 'polling'],
+      withCredentials: true,
       reconnectionAttempts: 10,
     });
 
@@ -86,6 +84,26 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, [isAuthenticated]);
 
+  const [now, setNow] = useState(Date.now());
+
+  // Periodically update local timestamp to evaluate 90s heartbeat expiry
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const isDeviceOnline = (() => {
+    if (!deviceStatus) return false;
+    if (!deviceStatus.connected) return false;
+    if (deviceStatus.lastSeen) {
+      const lastSeenTime = new Date(deviceStatus.lastSeen).getTime();
+      if (!isNaN(lastSeenTime) && now - lastSeenTime > 90000) {
+        return false;
+      }
+    }
+    return true;
+  })();
+
   const clearLatestScan = () => {
     setLatestScan(null);
   };
@@ -96,7 +114,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         socket,
         latestScan,
         deviceStatus,
-        isDeviceOnline: deviceStatus?.connected ?? false,
+        isDeviceOnline,
         clearLatestScan,
         refreshDeviceStatus: fetchDeviceStatus,
       }}

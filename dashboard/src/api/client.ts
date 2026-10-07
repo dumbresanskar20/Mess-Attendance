@@ -16,11 +16,17 @@ export const BASE_URL: string = (
     : `${BACKEND_URL}/api`)
 ).replace(/\/+$/, '');
 
+function getCsrfTokenFromCookie(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 function handleAuthFailure() {
   localStorage.removeItem('access_token');
   localStorage.removeItem('refresh_token');
   localStorage.removeItem('user');
-  
+
   // Guard against infinite reload loop: NEVER redirect or reload if already on /login
   if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
     window.location.href = '/login';
@@ -31,21 +37,32 @@ export async function apiRequest<T = any>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = localStorage.getItem('access_token');
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('access_token') : null;
   const headers = new Headers(options.headers || {});
 
   if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
 
-  if (token) {
+  // Include Bearer header if present in localStorage
+  if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  // Include double-submit CSRF header for mutation methods
+  const method = (options.method || 'GET').toUpperCase();
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const csrfToken = getCsrfTokenFromCookie() || (typeof localStorage !== 'undefined' ? localStorage.getItem('csrf_token') : null);
+    if (csrfToken && !headers.has('x-csrf-token')) {
+      headers.set('x-csrf-token', csrfToken);
+    }
   }
 
   let response: Response;
   try {
     response = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
+      credentials: 'include', // Always send and receive httpOnly cookies
       headers,
     });
   } catch (err: any) {
@@ -58,33 +75,43 @@ export async function apiRequest<T = any>(
     !endpoint.includes('/auth/login') &&
     !endpoint.includes('/auth/refresh')
   ) {
-    const refreshToken = localStorage.getItem('refresh_token');
-    if (refreshToken) {
-      try {
-        const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken }),
-        });
+    const refreshToken = typeof localStorage !== 'undefined' ? localStorage.getItem('refresh_token') : null;
+    const csrfToken = getCsrfTokenFromCookie() || (typeof localStorage !== 'undefined' ? localStorage.getItem('csrf_token') : null);
 
-        if (refreshRes.ok) {
-          const data = await refreshRes.json();
+    try {
+      const refreshHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (csrfToken) refreshHeaders['x-csrf-token'] = csrfToken;
+
+      const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: refreshHeaders,
+        body: JSON.stringify(refreshToken ? { refreshToken } : {}),
+      });
+
+      if (refreshRes.ok) {
+        const data = await refreshRes.json();
+        if (data.accessToken) {
           localStorage.setItem('access_token', data.accessToken);
-          localStorage.setItem('refresh_token', data.refreshToken);
-
-          // Retry original request with new token
           headers.set('Authorization', `Bearer ${data.accessToken}`);
-          response = await fetch(`${BASE_URL}${endpoint}`, {
-            ...options,
-            headers,
-          });
-        } else {
-          handleAuthFailure();
         }
-      } catch (e) {
+        if (data.refreshToken) {
+          localStorage.setItem('refresh_token', data.refreshToken);
+        }
+        if (data.csrfToken) {
+          localStorage.setItem('csrf_token', data.csrfToken);
+        }
+
+        // Retry original request with credentials and updated headers
+        response = await fetch(`${BASE_URL}${endpoint}`, {
+          ...options,
+          credentials: 'include',
+          headers,
+        });
+      } else {
         handleAuthFailure();
       }
-    } else {
+    } catch {
       handleAuthFailure();
     }
   }

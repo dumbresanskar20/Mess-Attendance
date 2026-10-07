@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { db } from '../db/connection';
 import { authenticateJWT } from '../middlewares/auth.middleware';
+import { authenticateDevice } from '../middlewares/deviceAuth.middleware';
 import * as scanService from '../services/scan.service';
 import { logAudit, getClientIp } from '../services/audit.service';
 
@@ -12,6 +13,8 @@ const scanSchema = z.object({
   fingerprintId: z.coerce.number().optional(),
   studentId: z.coerce.number().optional(),
   deviceId: z.string().optional(),
+  event_id: z.string().optional(),
+  eventId: z.string().optional(),
   simulatedWindowId: z.coerce.number().optional(),
 });
 
@@ -43,19 +46,28 @@ router.get(
   }
 );
 
-// POST /api/scan (Device Bridge & Counter Scanner)
+// POST /api/scan (Device Bridge & Counter Scanner - Requires valid device signature)
 router.post(
   '/scan',
+  authenticateDevice,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const parsed = scanSchema.parse(req.body);
-      const outcome = await scanService.processScan(parsed);
+      const outcome = await scanService.processScan({
+        deviceUserId: parsed.deviceUserId,
+        fingerprintId: parsed.fingerprintId,
+        studentId: parsed.studentId,
+        deviceId: parsed.deviceId || req.device?.device_id,
+        eventId: parsed.eventId || parsed.event_id,
+        simulatedWindowId: parsed.simulatedWindowId,
+      });
       res.json(outcome);
     } catch (error) {
       next(error);
     }
   }
 );
+
 
 // POST /api/meals/manual (Counter Staff Manual Entry)
 router.post(

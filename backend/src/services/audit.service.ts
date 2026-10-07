@@ -3,7 +3,7 @@ import { db } from '../db/connection';
 import { logger } from '../utils/logger';
 
 export interface AuditParams {
-  adminId: string | number;
+  adminId?: string | number | null;
   action: string;
   targetType: string;
   targetId?: string | number | null;
@@ -14,7 +14,7 @@ export interface AuditParams {
 export async function logAudit(params: AuditParams): Promise<void> {
   try {
     await db('audit_log').insert({
-      admin_id: params.adminId,
+      admin_id: params.adminId !== undefined ? params.adminId : null,
       action: params.action,
       target_type: params.targetType,
       target_id: params.targetId ? String(params.targetId) : null,

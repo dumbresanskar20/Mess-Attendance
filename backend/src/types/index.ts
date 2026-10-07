@@ -7,6 +7,9 @@ export interface AdminUser {
   password_hash: string;
   role: AdminRole;
   is_active: boolean;
+  must_change_password?: boolean;
+  failed_login_attempts?: number;
+  locked_until?: string | Date | null;
   created_at: string | Date;
 }
 
@@ -108,6 +111,7 @@ export type ManualReason =
 
 export interface MealLogEntry {
   id: string | number;
+  event_id?: string | null;
   student_id: string | number | null;
   meal_window_id: string | number;
   meal_date: string;
@@ -119,6 +123,17 @@ export interface MealLogEntry {
   marked_by: string | number | null;
   manual_reason: ManualReason | null;
   created_at: string | Date;
+}
+
+export interface Device {
+  id: string | number;
+  device_id: string;
+  name: string;
+  secret_hash: string;
+  is_active: boolean;
+  last_heartbeat_at: string | Date | null;
+  created_at: string | Date;
+  updated_at: string | Date;
 }
 
 export interface AuditLogEntry {
@@ -137,4 +152,6 @@ export interface AuthUserPayload {
   email: string;
   name: string;
   role: AdminRole;
+  mustChangePassword?: boolean;
 }
+

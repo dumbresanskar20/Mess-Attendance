@@ -6,6 +6,9 @@ export interface AdminUser {
   email: string;
   role: AdminRole;
   is_active: boolean;
+  must_change_password?: boolean;
+  mustChangePassword?: boolean;
+  totp_enabled?: boolean;
   created_at: string;
 }
 

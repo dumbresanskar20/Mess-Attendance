@@ -22,9 +22,7 @@ beforeAll(async () => {
   counterToken = counterRes.body.accessToken;
 });
 
-afterAll(async () => {
-  await db.destroy();
-});
+// connection managed globally
 
 describe('Phase 2: Core Data (Students, Plans, Ledger, Audit, Staff)', () => {
   let createdStudentId: number;

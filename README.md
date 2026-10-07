@@ -29,9 +29,11 @@
 | **Backend REST & Socket Engine** | **Render** | [https://mess-attendance.onrender.com/](https://mess-attendance.onrender.com/) | Express, Knex, Aiven MySQL Cloud, Socket.IO websocket broadcaster |
 | **Biometric Device Bridge** | **Render** | [https://mess-attendance-1.onrender.com/](https://mess-attendance-1.onrender.com/) | Real-time ZKTeco/eSSL LAN listener and developer `MockDevice` simulator |
 
-#### 🔑 Demo Credentials:
-- **Owner Account**: `owner@mess.local` / `Owner@123456` *(Full system configuration, financial reports, ledger adjustment)*
-- **Counter Staff Account**: `counter@mess.local` / `Counter@123456` *(Live counter scanning and student lookup)*
+#### 🔐 Authentication & First-Run Setup:
+- **First-Time Setup Flow**: On fresh installations where no active `OWNER` exists, the system automatically presents the **First-Time Setup Wizard** at `/setup` to initialize the primary owner account, or reads `INITIAL_OWNER_EMAIL` and `INITIAL_OWNER_PASSWORD` from your environment.
+- **Forced Password Change**: Any initial owner created via the setup flow has `must_change_password = true` and is prompted to configure a permanent secure password upon first login.
+- **Login Rate Limiting & Lockout**: Per-IP and per-email rate limiting with automatic account lockout for 15 minutes after 5 consecutive failed attempts, recording full audit trail entries in `audit_log`.
+- **Development Presets**: In local development (`NODE_ENV !== 'production'`), quick demo accounts (`owner@mess.local` / `counter@mess.local`) are provided for testing.
 
 ---
 
@@ -43,23 +45,26 @@ flowchart TB
         UI_Counter["⚡ Live Counter Screen\n(Real-time Audio Chimes)"]
         UI_Admin["📊 Admin Dashboard\n(Ledger, Analytics, Reports)"]
         UI_Mobile["📱 Mobile Drawer & Bottom Nav\n(Responsive Touch UI)"]
+        UI_Setup["🔐 First-Run Setup\n(One-Time Owner Init)"]
     end
 
     subgraph HardwareLayer["🔌 Biometric & Hardware Layer"]
         ZK_Device["🖐️ Physical ZKTeco/eSSL Terminal\n(LAN TCP/IP)"]
         Mock_Device["🧪 Virtual Mock Device\n(Zero-Hardware Dev Simulator)"]
-        Bridge["🌉 Device Bridge Service\n(node-zklib & EventEmitter)"]
+        Bridge["🌉 Device Bridge Service\n(HMAC-SHA256 Signed Scans + Heartbeat)"]
     end
 
     subgraph BackendLayer["⚙️ Core Backend Engine (Render)"]
         API["🛡️ Express REST API\n(Zod Validation, Rate Limiter, Helmet)"]
-        Auth["🔐 JWT Auth & RBAC\n(OWNER vs COUNTER)"]
+        Auth["🔐 JWT Auth & Security\n(RBAC, 15m Lockout, Rate Limiter)"]
+        DeviceAuth["🔒 HMAC-SHA256 Device Auth\n(Replay Guard, 60s window, Idempotency)"]
         SocketServer["📡 Socket.IO Broadcaster\n(scan:result realtime events)"]
         Crypto["🔒 AES-256-GCM Engine\n(Biometric Envelope Encryption)"]
         Cron["⏰ node-cron Scheduled Workers\n(Midnight Plan Expiry & Encrypted Dumps)"]
     end
 
     subgraph DatabaseLayer["🗄️ MySQL 8.0 InnoDB Storage (Aiven Cloud)"]
+        T_Devices["devices\n(Registered Bridges, Heartbeats)"]
         T_Students["students\n(Consented Profiles)"]
         T_Fingerprints["fingerprints\n(AES Encrypted Templates)"]
         T_Plans["plans & student_plans\n(Validity, Pricing, Allowances)"]
@@ -72,7 +77,8 @@ flowchart TB
 
     ZK_Device -->|TCP 4370| Bridge
     Mock_Device --> Bridge
-    Bridge -->|POST /api/scan| API
+    Bridge -->|POST /api/scan (HMAC-SHA256 signed)| API
+    Bridge -->|POST /api/devices/heartbeat| API
 
     UI_Counter <-->|WebSockets| SocketServer
     UI_Admin <-->|REST + Bearer JWT| API
@@ -80,6 +86,7 @@ flowchart TB
     SocketServer --- API
 
     API --> Auth
+    API --> DeviceAuth
     API --> Crypto
     API --> DatabaseLayer
     Cron --> DatabaseLayer
@@ -90,7 +97,7 @@ flowchart TB
 ## ⚡ How It Works (Core Operational Workflows)
 
 ### 1. Unified Fingerprint Scan & Attendance Flow
-Every meal scan is processed within a **single atomic database transaction** (`processScan`) with database-level race condition guards:
+Every meal scan is authenticated with an HMAC-SHA256 signature and processed within a **single atomic database transaction** (`processScan`) with database-level race condition guards:
 
 ```mermaid
 sequenceDiagram
@@ -105,14 +112,14 @@ sequenceDiagram
 
     Student->>Scanner: Places finger on reader
     Scanner->>Bridge: Emits device event (deviceUserId)
-    Bridge->>Backend: POST /api/scan { deviceUserId }
+    Bridge->>Backend: POST /api/scan (HMAC-SHA256 signed with X-Device-Id, X-Timestamp, X-Signature)
     
     rect rgb(240, 248, 255)
         note over Backend,DB: Single Atomic Transaction (db.transaction)
-        Backend->>DB: 1. Lookup student by deviceUserId
-        Backend->>DB: 2. Lock student row FOR UPDATE
-        Backend->>DB: 3. Verify status == 'ACTIVE'
-        Backend->>DB: 4. Check active meal window (Breakfast, Lunch, Dinner, etc.)
+        Backend->>DB: 1. Verify HMAC signature & replay window (< 60s)
+        Backend->>DB: 2. Enforce idempotency on unique event_id
+        Backend->>DB: 3. Lookup student by deviceUserId & Lock FOR UPDATE
+        Backend->>DB: 4. Check active meal window
         Backend->>DB: 5. Prevent double tap within 2 mins (ALREADY_ATE)
         Backend->>DB: 6. Verify active meal plan covering today
         Backend->>DB: 7. Check remaining balance > 0 from student_balances
@@ -177,10 +184,7 @@ graph LR
 ```
 
 - **Envelope Encryption**: Stored templates are secured with authenticated AES-256-GCM. Any manual tampering with the ciphertext triggers an authentication tag mismatch error.
-- **Append-Only Triggers**: MySQL triggers on `token_ledger`, `meal_log`, and `audit_log` explicitly raise SQL exceptions on `UPDATE` or `DELETE`:
-  ```sql
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Append-only table: UPDATE and DELETE are prohibited';
-  ```
+- **Append-Only Triggers**: MySQL triggers on `token_ledger`, `meal_log`, and `audit_log` explicitly raise SQL exceptions on `UPDATE` or `DELETE`.
 - **Double-Deduction Invariant**: An enforced database unique key on `(student_id, meal_window_id, meal_date)` for approved meals guarantees that concurrent scans can never result in duplicate deductions.
 
 ---
@@ -198,7 +202,8 @@ Mess-Attendance/
 │   │   ├── 📂 jobs/                 # node-cron scheduled tasks (midnight expiry, backups)
 │   │   ├── 📂 middlewares/          # JWT authentication, role guards, rate limiting, error handler
 │   │   ├── 📂 routes/               # API route definitions
-│   │   │   ├── auth.routes.ts       # Login, token refresh, logout, me
+│   │   │   ├── auth.routes.ts       # Login, lockout, setup-status, change-password, refresh
+│   │   │   ├── device.routes.ts     # Device heartbeat & status management
 │   │   │   ├── student.routes.ts    # Student CRUD, biometric enrollment, purge
 │   │   │   ├── plan.routes.ts       # Meal package creation and pricing
 │   │   │   ├── token.routes.ts      # Plan purchase, token adjustment, ledger audit
@@ -207,7 +212,7 @@ Mess-Attendance/
 │   │   │   ├── staff.routes.ts      # Admin account management and audit trail
 │   │   │   └── dashboard.routes.ts  # Daily KPI metrics, 7-day charts, alerts
 │   │   ├── 📂 services/             # Core business transactions (Scan, Student, Token, Backup)
-│   │   ├── 📂 tests/                # Automated test suite (42 Vitest specs)
+│   │   ├── 📂 tests/                # Automated test suite (Vitest specs)
 │   │   └── 📂 utils/                # Crypto (AES-256-GCM), time (IST helpers), logger, time ranges
 │   ├── package.json
 │   └── tsconfig.json
@@ -216,25 +221,25 @@ Mess-Attendance/
 │   ├── 📂 src/
 │   │   ├── 📂 api/                  # Fetch client with automated JWT refresh interception
 │   │   ├── 📂 components/           # Modular UI components
+│   │   │   ├── 📂 auth/             # ForcedChangePassword modal & auth security
 │   │   │   ├── 📂 layout/           # AppLayout (Responsive sidebar, mobile drawer, bottom nav)
 │   │   │   ├── 📂 common/           # Modal, Badge, Skeleton, Dark mode toggle
 │   │   │   └── 📂 biometrics/       # Fingerprint enrollment modal & scanner simulation
 │   │   ├── 📂 context/              # AuthContext (roles, tokens) & SocketContext (realtime scans)
 │   │   ├── 📂 pages/                # Route views
-│   │   │   ├── LoginPage.tsx        # Authentication screen with quick-demo presets
+│   │   │   ├── LoginPage.tsx        # Authentication screen with dev-only presets
+│   │   │   ├── SetupPage.tsx        # First-time owner setup wizard
 │   │   │   ├── DashboardPage.tsx    # Live scan stream, Recharts 7-day breakdown, alerts
-│   │   │   ├── CounterPage.tsx      # High-visibility scan feedback, window selector, manual fallback
+│   │   │   ├── CounterPage.tsx      # High-visibility scan feedback, offline banner, manual fallback
 │   │   │   ├── StudentsPage.tsx     # Student directory, mobile cards, search & filter pills
 │   │   │   ├── StudentProfilePage.tsx # Token ledger, enrolled fingerprints, past meals, renewal
 │   │   │   ├── PlansPage.tsx        # Meal plan creation, validity, price configuration
 │   │   │   ├── MealLogPage.tsx      # Comprehensive audit log with CSV export
 │   │   │   ├── ReportsPage.tsx      # Monthly reconciliation with Excel & PDF downloads
 │   │   │   └── StaffAuditPage.tsx   # Staff accounts and immutable audit event stream
-│   │   ├── 📂 utils/                # Synthesized Web Audio chime player
 │   │   ├── App.tsx                  # Root routing & protected route wrappers
 │   │   └── main.tsx                 # Entrypoint
 │   ├── package.json
-│   ├── tailwind.config.js
 │   └── vite.config.ts
 │
 ├── 📂 device-bridge/                # Biometric terminal bridge service
@@ -242,14 +247,15 @@ Mess-Attendance/
 │   │   ├── 📂 drivers/
 │   │   │   ├── zk.driver.ts         # node-zklib TCP driver for physical ZKTeco/eSSL hardware
 │   │   │   └── mock.driver.ts       # Virtual MockDevice driver for zero-hardware simulation
-│   │   ├── index.ts                 # Express server & socket listener
-│   │   ├── types.ts                 # FingerprintDevice interface abstraction
-│   │   └── urls.ts                  # Target backend service endpoints
+│   │   ├── index.ts                 # Express server & socket listener (Signed scans & Heartbeat)
+│   │   └── types.ts                 # FingerprintDevice interface abstraction
+│   ├── Dockerfile                   # Deployment container for Raspberry Pi / On-premise PC
 │   ├── package.json
 │   └── tsconfig.json
 │
 ├── 📂 docs/                         # Operational manuals
 │   ├── setup-guide.md               # Local, Docker, and Cloud deployment instructions
+│   ├── device-bridge-deployment.md  # Raspberry Pi / LAN deployment guide
 │   ├── staff-guide.md               # Operating instructions for mess counter staff
 │   └── device-failure-guide.md      # Troubleshooting biometric scanner disconnections
 │
@@ -257,17 +263,6 @@ Mess-Attendance/
 ├── package.json                     # Monorepo workspace configuration
 └── README.md                        # Project documentation
 ```
-
----
-
-## 📱 Mobile-First Responsive Design
-
-The frontend admin interface has been engineered to deliver a seamless experience on both widescreen counter displays and mobile smartphones:
-
-- **Slide-out Navigation Drawer**: Clean off-canvas navigation menu accessible via hamburger button on touch screens.
-- **Fixed Mobile Bottom Navigation**: Quick 1-tap thumb navigation between key routes (**Dashboard**, **Counter**, **Students**, **Plans**, etc.) with zero overlapping content.
-- **Touch-Friendly Student Cards**: On mobile screens (`< 768px`), table rows convert into dedicated cards displaying photos, remaining token counts, plan validity, and biometric counts.
-- **Overflow-Protected Modals**: All dialogs dynamically size with scrollable viewports (`max-h-[90vh]`) to ensure buttons and inputs are always accessible on short or mobile screens.
 
 ---
 
@@ -297,12 +292,17 @@ Create `.env` in the repository root:
 PORT=4000
 NODE_ENV=development
 DATABASE_URL=mysql://mess_user:mess_password@127.0.0.1:3306/mess_attendance
-JWT_SECRET=super-secret-jwt-key-minimum-32-characters-long
+JWT_ACCESS_SECRET=super-secret-jwt-access-key-minimum-32-characters-long
 JWT_REFRESH_SECRET=super-secret-jwt-refresh-key-minimum-32-characters
-ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+FINGERPRINT_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 CORS_ORIGIN=http://localhost:5173
 BRIDGE_PORT=4001
 DEVICE_DRIVER=mock
+
+# Optional: Initial Production Owner credentials
+# INITIAL_OWNER_NAME="Primary Admin"
+# INITIAL_OWNER_EMAIL="admin@yourdomain.com"
+# INITIAL_OWNER_PASSWORD="SecureAdminPassword2026!"
 ```
 
 ### 5. Run Database Migrations & Seeds
@@ -312,7 +312,6 @@ npm run seed
 ```
 
 ### 6. Start Development Servers
-Run backend, bridge, and dashboard simultaneously:
 ```bash
 # Run all workspace services in parallel:
 npm run dev
@@ -323,37 +322,14 @@ npm run dev:bridge     # Runs Bridge on http://localhost:4001
 npm run dev:dashboard  # Runs UI on http://localhost:5173
 ```
 
-Visit **`http://localhost:5173`** and sign in using the demo accounts.
+Visit **`http://localhost:5173`**.
 
 ---
 
 ## 🧪 Automated Test Suite
 
-The test suite validates biometric encryption, concurrency locks, triggers, and scan engine business rules:
-
 ```bash
 npm test
-```
-
-```text
-✓ src/tests/crypto.test.ts (6 tests)
-  ✓ AES-256-GCM Encryption > should encrypt and decrypt biometric templates
-  ✓ AES-256-GCM Encryption > should reject tampered authentication tags
-
-✓ src/tests/db_triggers.test.ts (5 tests)
-  ✓ Database Triggers > should prohibit UPDATE on token_ledger
-  ✓ Database Triggers > should prohibit DELETE on meal_log
-  ✓ Database Triggers > should prohibit DELETE on audit_log
-
-✓ src/tests/auth.test.ts (6 tests)
-  ✓ Role Guards > should authenticate OWNER and COUNTER roles
-  ✓ Role Guards > should reject unauthorized token manipulation
-
-✓ src/tests/scan_engine.test.ts (8 tests)
-  ✓ Rules Engine > should reject scan on expired plans (PLAN_EXPIRED)
-  ✓ Rules Engine > should reject scan when balance is 0 (NO_BALANCE)
-  ✓ Rules Engine > should approve valid scan, deduct 1 token, and log meal
-  ✓ Rules Engine > should handle simultaneous duplicate scans without double deduction
 ```
 
 ---
@@ -361,7 +337,8 @@ npm test
 ## 📖 Documentation
 
 - 📘 [**Setup & Deployment Guide**](docs/setup-guide.md) — Detailed deployment walkthrough for local, Docker, and Render/Vercel cloud setups.
-- 📙 [**Counter Staff Operating Guide**](docs/staff-guide.md) — Step-by-step operating guide for mess counter staff (scanning, manual entries, sound toggles).
+- 🔌 [**Device Bridge Deployment Guide**](docs/device-bridge-deployment.md) — Step-by-step instructions for running the bridge on Raspberry Pi or LAN PC.
+- 📙 [**Counter Staff Operating Guide**](docs/staff-guide.md) — Step-by-step operating guide for mess counter staff.
 - 📕 [**Device Failure & Recovery Guide**](docs/device-failure-guide.md) — Procedures for handling power outages, LAN disconnects, and fallback mechanisms.
 
 ---

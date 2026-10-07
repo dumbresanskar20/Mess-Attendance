@@ -1,7 +1,7 @@
 import { db } from '../db/connection';
 
 async function clearData() {
-  console.log('Connecting to database and clearing operational data...');
+  console.log('Connecting to database and clearing all demo/operational data...');
 
   try {
     // 1. Disable FK checks and drop append-only triggers
@@ -14,25 +14,51 @@ async function clearData() {
     await db.raw('DROP TRIGGER IF EXISTS trg_token_ledger_no_delete;');
     await db.raw('DROP TRIGGER IF EXISTS trg_token_ledger_no_update;');
 
-    // 2. Truncate operational tables
-    console.log('Truncating tables: audit_log, token_ledger, meal_log, student_plans, fingerprints, students, plans...');
+    // 2. Truncate operational and demo tables
+    console.log('Truncating tables: audit_log, token_ledger, meal_log, student_plans, fingerprints, students, refresh_tokens, admin_users, devices...');
     await db('audit_log').truncate();
     await db('token_ledger').truncate();
     await db('meal_log').truncate();
     await db('student_plans').truncate();
     await db('fingerprints').truncate();
     await db('students').truncate();
-    await db('plans').truncate();
 
-    // Re-insert base meal plans so plans exist for student enrollment
-    await db('plans').insert([
-      { id: 1, name: 'Starter Plan (15 Days)', price_inr: 1800.0, tokens: 30, validity_days: 15, meals_per_day: 2, is_active: true, created_at: new Date() },
-      { id: 2, name: 'Standard Monthly (30 Days)', price_inr: 3300.0, tokens: 60, validity_days: 30, meals_per_day: 2, is_active: true, created_at: new Date() },
-      { id: 3, name: 'Executive Plan (45 Days)', price_inr: 4800.0, tokens: 90, validity_days: 45, meals_per_day: 2, is_active: true, created_at: new Date() },
-    ]);
+    const hasRefreshTokens = await db.schema.hasTable('refresh_tokens');
+    if (hasRefreshTokens) {
+      await db('refresh_tokens').truncate();
+    }
+
+    const hasDevices = await db.schema.hasTable('devices');
+    if (hasDevices) {
+      await db('devices').truncate();
+    }
+
+    // Clear demo admin users so initial setup wizard can configure a real Owner account
+    await db('admin_users').truncate();
+
+    // Ensure plans exist
+    const planCount = await db('plans').count<{ count: number | string }>('id as count').first();
+    if (Number(planCount?.count || 0) === 0) {
+      await db('plans').insert([
+        { id: 1, name: 'Starter Plan (15 Days)', price_inr: 1800.0, tokens: 30, validity_days: 15, meals_per_day: 2, is_active: true, created_at: new Date() },
+        { id: 2, name: 'Standard Monthly (30 Days)', price_inr: 3300.0, tokens: 60, validity_days: 30, meals_per_day: 2, is_active: true, created_at: new Date() },
+        { id: 3, name: 'Executive Plan (45 Days)', price_inr: 4800.0, tokens: 90, validity_days: 45, meals_per_day: 2, is_active: true, created_at: new Date() },
+      ]);
+    }
+
+    // Ensure meal windows exist
+    const windowCount = await db('meal_windows').count<{ count: number | string }>('id as count').first();
+    if (Number(windowCount?.count || 0) === 0) {
+      await db('meal_windows').insert([
+        { id: 1, name: 'Lunch', start_time: '11:30:00', end_time: '16:00:00', is_active: true, created_at: new Date() },
+        { id: 2, name: 'Dinner', start_time: '18:30:00', end_time: '22:30:00', is_active: true, created_at: new Date() },
+        { id: 3, name: 'Breakfast', start_time: '06:30:00', end_time: '11:30:00', is_active: true, created_at: new Date() },
+        { id: 4, name: 'Snacks', start_time: '16:00:00', end_time: '18:30:00', is_active: true, created_at: new Date() },
+      ]);
+    }
 
     // 3. Re-create append-only triggers
-    console.log('Re-creating triggers...');
+    console.log('Re-creating security triggers...');
     await db.raw(`
       CREATE TRIGGER trg_token_ledger_no_update
       BEFORE UPDATE ON token_ledger
@@ -114,7 +140,7 @@ async function clearData() {
       console.log(`${table.padEnd(16)}: ${count} rows`);
     }
 
-    console.log('\nOperational data cleared successfully! Admin users and Meal Windows preserved.');
+    console.log('\nAll demo data and demo users wiped clean. Database is ready for full authentication & setup.');
     process.exit(0);
   } catch (error) {
     console.error('Error clearing database:', error);

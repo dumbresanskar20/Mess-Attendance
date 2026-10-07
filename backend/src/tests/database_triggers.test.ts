@@ -2,9 +2,6 @@ import { describe, it, expect, afterAll } from 'vitest';
 import { db } from '../db/connection';
 
 describe('Database Triggers & Append-Only Invariants', () => {
-  afterAll(async () => {
-    await db.destroy();
-  });
 
   it('should prohibit UPDATE on token_ledger with trigger error', async () => {
     const entry = await db('token_ledger').first();

@@ -234,37 +234,7 @@ router.post(
   }
 );
 
-// GET /api/device/status (Hardware status health check)
-router.get(
-  '/device/status',
-  async (req: Request, res: Response): Promise<void> => {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 2000);
 
-      const bridgeRes = await fetch(`${env.DEVICE_BRIDGE_URL}/status`, {
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-
-      if (bridgeRes.ok) {
-        const data = await bridgeRes.json();
-        res.json(data);
-        return;
-      }
-    } catch (e) {
-      // Bridge unreachable
-    }
-
-    // Fallback status if bridge service is down
-    res.json({
-      connected: false,
-      driver: 'bridge-offline',
-      error: 'Device bridge service unreachable',
-      lastSeen: null,
-    });
-  }
-);
 
 // POST /api/device/enroll (Trigger external biometric device enrollment)
 router.post(

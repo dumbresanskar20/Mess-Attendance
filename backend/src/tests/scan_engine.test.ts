@@ -2,13 +2,57 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../app';
 import { db } from '../db/connection';
+import { calculateDeviceSignature } from '../utils/deviceSignature';
 
 const app = createApp();
+
+const DEVICE_ID = 'DEV-COUNTER-01';
+const DEVICE_SECRET = 'mock-device-secret-key-2026';
 
 let counterToken: string;
 let ownerToken: string;
 
+function postScan(payload: any) {
+  const timestamp = new Date().toISOString();
+  const signature = calculateDeviceSignature(DEVICE_SECRET, timestamp, payload);
+  return request(app)
+    .post('/api/scan')
+    .set({
+      'X-Device-Id': DEVICE_ID,
+      'X-Timestamp': timestamp,
+      'X-Signature': signature,
+    })
+    .send(payload);
+}
+
 beforeAll(async () => {
+  const hasDevices = await db.schema.hasTable('devices');
+  if (!hasDevices) {
+    await db.schema.createTable('devices', (table) => {
+      table.bigIncrements('id').primary();
+      table.string('device_id', 100).notNullable().unique();
+      table.string('name', 255).notNullable();
+      table.string('secret_hash', 255).notNullable();
+      table.boolean('is_active').notNullable().defaultTo(true);
+      table.dateTime('last_heartbeat_at', { precision: 3 }).nullable();
+      table.dateTime('created_at', { precision: 3 }).notNullable().defaultTo(db.fn.now(3));
+      table.dateTime('updated_at', { precision: 3 }).notNullable().defaultTo(db.fn.now(3));
+    });
+  }
+
+  const existingDevice = await db('devices').where('device_id', DEVICE_ID).first();
+  if (!existingDevice) {
+    await db('devices').insert({
+      device_id: DEVICE_ID,
+      name: 'Counter 1 Scanner Bridge',
+      secret_hash: DEVICE_SECRET,
+      is_active: true,
+      last_heartbeat_at: new Date(),
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+  }
+
   const counterRes = await request(app).post('/api/auth/login').send({
     email: 'counter@mess.local',
     password: 'Counter@123456',
@@ -22,18 +66,14 @@ beforeAll(async () => {
   ownerToken = ownerRes.body.accessToken;
 });
 
-afterAll(async () => {
-  await db.destroy();
-});
+// connection managed globally
 
 describe('Phase 3: Scan Engine & Meal Rules', () => {
   it('should reject scan when no student matches (NO_MATCH)', async () => {
-    const res = await request(app)
-      .post('/api/scan')
-      .send({
-        deviceUserId: 'NON_EXISTENT_DEVICE_USER_9999',
-        simulatedWindowId: 1,
-      });
+    const res = await postScan({
+      deviceUserId: 'NON_EXISTENT_DEVICE_USER_9999',
+      simulatedWindowId: 1,
+    });
 
     expect(res.status).toBe(200);
     expect(res.body.result).toBe('REJECTED');
@@ -51,12 +91,10 @@ describe('Phase 3: Scan Engine & Meal Rules', () => {
     const inactiveStudent = await db('students').where('status', 'INACTIVE').first();
     expect(inactiveStudent).toBeDefined();
 
-    const res = await request(app)
-      .post('/api/scan')
-      .send({
-        studentId: inactiveStudent.id,
-        simulatedWindowId: 1,
-      });
+    const res = await postScan({
+      studentId: inactiveStudent.id,
+      simulatedWindowId: 1,
+    });
 
     expect(res.status).toBe(200);
     expect(res.body.result).toBe('REJECTED');
@@ -67,15 +105,10 @@ describe('Phase 3: Scan Engine & Meal Rules', () => {
     // Student 5 is active with active plan
     const student = await db('students').where('id', 5).first();
 
-    // In a test without simulatedWindowId when current IST time is outside 12-15 & 19-22,
-    // or by checking getActiveMealWindow
-    // Let's pass a non-existent window ID 9999 to simulate no active window
-    const res = await request(app)
-      .post('/api/scan')
-      .send({
-        studentId: student.id,
-        simulatedWindowId: 9999, // Outside window
-      });
+    const res = await postScan({
+      studentId: student.id,
+      simulatedWindowId: 9999, // Outside window
+    });
 
     expect(res.status).toBe(200);
     expect(res.body.result).toBe('REJECTED');
@@ -86,12 +119,10 @@ describe('Phase 3: Scan Engine & Meal Rules', () => {
     // Student 29 was seeded with an expired plan (expired 5 days ago)
     const student = await db('students').where('id', 29).first();
 
-    const res = await request(app)
-      .post('/api/scan')
-      .send({
-        studentId: student.id,
-        simulatedWindowId: 1,
-      });
+    const res = await postScan({
+      studentId: student.id,
+      simulatedWindowId: 1,
+    });
 
     expect(res.status).toBe(200);
     expect(res.body.result).toBe('REJECTED');
@@ -126,12 +157,10 @@ describe('Phase 3: Scan Engine & Meal Rules', () => {
     });
 
     // Note: No tokens added in ledger, so balance is 0!
-    const res = await request(app)
-      .post('/api/scan')
-      .send({
-        studentId,
-        simulatedWindowId: 1,
-      });
+    const res = await postScan({
+      studentId,
+      simulatedWindowId: 1,
+    });
 
     expect(res.status).toBe(200);
     expect(res.body.result).toBe('REJECTED');
@@ -180,12 +209,10 @@ describe('Phase 3: Scan Engine & Meal Rules', () => {
     expect(Number(initialBal.balance)).toBe(10);
 
     // Perform scan
-    const res = await request(app)
-      .post('/api/scan')
-      .send({
-        studentId,
-        simulatedWindowId: 1,
-      });
+    const res = await postScan({
+      studentId,
+      simulatedWindowId: 1,
+    });
 
     expect(res.status).toBe(200);
     expect(res.body.result).toBe('APPROVED');
@@ -206,12 +233,10 @@ describe('Phase 3: Scan Engine & Meal Rules', () => {
     expect(Number(updatedBal.balance)).toBe(9);
 
     // Step 5 test: Immediate second scan must reject with ALREADY_ATE
-    const repeatRes = await request(app)
-      .post('/api/scan')
-      .send({
-        studentId,
-        simulatedWindowId: 1,
-      });
+    const repeatRes = await postScan({
+      studentId,
+      simulatedWindowId: 1,
+    });
 
     expect(repeatRes.status).toBe(200);
     expect(repeatRes.body.result).toBe('REJECTED');
@@ -326,8 +351,8 @@ describe('Phase 3: Scan Engine & Meal Rules', () => {
 
     // Fire 2 simultaneous requests
     const [res1, res2] = await Promise.all([
-      request(app).post('/api/scan').send({ studentId, simulatedWindowId: 1 }),
-      request(app).post('/api/scan').send({ studentId, simulatedWindowId: 1 }),
+      postScan({ studentId, simulatedWindowId: 1 }),
+      postScan({ studentId, simulatedWindowId: 1 }),
     ]);
 
     const results = [res1.body.result, res2.body.result];

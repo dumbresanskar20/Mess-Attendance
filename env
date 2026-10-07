@@ -1,0 +1,33 @@
+# Server Configuration
+PORT=4000
+NODE_ENV=development
+APP_TIMEZONE=Asia/Kolkata
+
+# Database Configuration (MySQL 8 InnoDB)
+DB_HOST=mysql-24f1a45a-dumbresanskar23-1ee.f.aivencloud.com
+DB_PORT=27719
+DB_USER=avnadmin
+DB_PASSWORD=AVNS_se6v5jCd_2mjOo_zt5w
+DB_NAME=defaultdb
+
+# JWT Authentication
+JWT_ACCESS_SECRET=super_secret_mess_access_jwt_key_32_chars_long!
+JWT_REFRESH_SECRET=super_secret_mess_refresh_jwt_key_32_chars_long!
+JWT_ACCESS_EXPIRES_IN=15m
+JWT_REFRESH_EXPIRES_IN=7d
+
+# Security: AES-256-GCM Fingerprint Template Encryption Key (64 hex characters = 32 bytes)
+FINGERPRINT_ENCRYPTION_KEY=e4d2938a16c74bc992a514d8f072c49a1b8e6f3d5c7a9b0e2d4f6a8c0e2b4d6f
+
+# Client, Backend & Device Bridge URLs
+DASHBOARD_URL=https://mess-attendance-six.vercel.app
+BACKEND_URL=https://mess-attendance.onrender.com
+DEVICE_BRIDGE_URL=https://mess-attendance-1.onrender.com
+CORS_ORIGIN=https://mess-attendance-six.vercel.app,http://localhost:5173
+
+# Business Policy Settings
+POLICY_EXPIRE_UNUSED_TOKENS=false
+
+# Backups
+BACKUP_DIR=./backups
+BACKUP_RETENTION_DAYS=30

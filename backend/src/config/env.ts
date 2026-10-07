@@ -40,6 +40,11 @@ const envSchema = z.object({
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
 
+  // Initial Owner Configuration for First-Run
+  INITIAL_OWNER_NAME: z.string().optional(),
+  INITIAL_OWNER_EMAIL: z.string().email().optional(),
+  INITIAL_OWNER_PASSWORD: z.string().min(8).optional(),
+
   // Encryption (64 hex characters = 32 bytes AES-256 key)
   FINGERPRINT_ENCRYPTION_KEY: z.string().length(64).default(
     'e4d2938a16c74bc992a514d8f072c49a1b8e6f3d5c7a9b0e2d4f6a8c0e2b4d6f'
