@@ -343,5 +343,20 @@ npm test
 
 ---
 
+## 🔑 Login Credentials
+
+The following pre-configured credentials are used for logging into the dashboard and counter screen:
+
+| Role | Role Name | Login Email / ID | Default Password | Access Permissions |
+| :--- | :--- | :--- | :--- | :--- |
+| **Owner** | Mess Owner | `owner@mess.local` | `Owner@123456` | Full Admin: Analytics, Plans, Token Ledger, Reports, Staff Management & Biometrics |
+| **Counter Staff** | Counter Staff | `counter@mess.local` | `Counter@123456` | Restricted: Live Counter Screen, Biometric Scanning & Student Lookup |
+
+> **Note**:
+> - If an Owner account was initialized during first-time launch setup (`/setup`), use the registered Owner email and password.
+> - Default passwords can be changed anytime from the **Staff & Audit** (`/staff`) administration panel.
+
+---
+
 ## 📄 License
 This project is licensed under the **MIT License**.

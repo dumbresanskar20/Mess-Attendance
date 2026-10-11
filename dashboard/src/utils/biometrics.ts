@@ -58,6 +58,8 @@ export async function checkBiometricAvailability(): Promise<BiometricAvailabilit
       inbuiltDeviceName = 'Windows Hello Fingerprint';
     } else if (/Android/i.test(navigator.userAgent)) {
       inbuiltDeviceName = 'Android Biometric Sensor';
+    } else if (/iPhone|iPad/i.test(navigator.userAgent)) {
+      inbuiltDeviceName = 'Apple Face ID / Touch ID';
     }
   }
 
@@ -72,8 +74,14 @@ export async function checkBiometricAvailability(): Promise<BiometricAvailabilit
     message = `External scanner not connected. Using device inbuilt sensor: ${inbuiltDeviceName}`;
   } else {
     primaryMethod = 'NONE';
-    message =
-      'No biometric sensor detected. Neither external scanner nor device inbuilt fingerprint sensor (Touch ID) is available.';
+    const isSecure = typeof window !== 'undefined' && window.isSecureContext;
+    if (!isSecure && typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+      message =
+        'Inbuilt biometrics require HTTPS when accessed from other devices over the local network (browser security policy).';
+    } else {
+      message =
+        'No biometric sensor detected. Ensure this device has a fingerprint sensor (Windows Hello / Touch ID) configured in OS settings.';
+    }
   }
 
   return {
@@ -95,13 +103,13 @@ export async function captureInbuiltFingerprint(
   fingerLabel: string = 'Right index'
 ): Promise<BiometricCaptureResult> {
   if (!window.PublicKeyCredential) {
-    throw new Error('WebAuthn biometrics is not supported in this browser.');
+    throw new Error('WebAuthn biometrics is not supported in this browser or requires HTTPS.');
   }
 
   const isAvailable = await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
   if (!isAvailable) {
     throw new Error(
-      'Device inbuilt fingerprint sensor (Touch ID / Platform Biometrics) is not available or not configured on this device.'
+      'Device inbuilt fingerprint sensor (Touch ID / Windows Hello) is not available or not configured on this device.'
     );
   }
 
@@ -111,14 +119,20 @@ export async function captureInbuiltFingerprint(
   // Encode student code as user id
   const userHandle = new TextEncoder().encode(studentCode.slice(0, 32));
 
+  // Determine valid relying party ID (WebAuthn forbids IP addresses as rp.id)
+  const isIpAddress = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(window.location.hostname);
+  const rpConfig: { name: string; id?: string } = {
+    name: 'Mess Attendance System',
+  };
+  if (window.location.hostname && !isIpAddress && window.location.hostname !== '127.0.0.1') {
+    rpConfig.id = window.location.hostname;
+  }
+
   try {
     const credential = (await navigator.credentials.create({
       publicKey: {
         challenge,
-        rp: {
-          name: 'Mess Attendance System',
-          id: window.location.hostname || 'localhost',
-        },
+        rp: rpConfig,
         user: {
           id: userHandle,
           name: studentCode,
