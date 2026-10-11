@@ -7,10 +7,10 @@ import {
   AlertTriangle,
   Volume2,
   VolumeX,
-  Clock,
   Sparkles,
   ArrowRight,
   ShieldAlert,
+  X,
 } from 'lucide-react';
 import { useSocket } from '../context/SocketContext';
 import { apiRequest } from '../api/client';
@@ -24,15 +24,11 @@ export const CounterPage: React.FC = () => {
   // Active result card state
   const [activeResult, setActiveResult] = useState<ScanOutcome | null>(null);
   const [recentScans, setRecentScans] = useState<ScanOutcome[]>([]);
+  const [recentSearchQuery, setRecentSearchQuery] = useState('');
   const [isMuted, setIsMuted] = useState<boolean>(() => sound.getMuted());
 
-  // Window & served count state
-  const [windowInfo, setWindowInfo] = useState<{
-    name: string;
-    servedCount: number;
-  }>({ name: 'Lunch', servedCount: 0 });
-  const [mealWindows, setMealWindows] = useState<{ id: number; name: string; start_time: string; end_time: string }[]>([]);
-  const [selectedWindowId, setSelectedWindowId] = useState<number | ''>('');
+  // Served count state
+  const [servedCount, setServedCount] = useState<number>(0);
 
   // Manual marking state
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,21 +47,11 @@ export const CounterPage: React.FC = () => {
   // Auto-reset timer ref
   const resetTimerRef = useRef<any>(null);
 
-  // Fetch initial window info and all active windows
-  const fetchWindowInfo = async () => {
+  // Fetch initial served count
+  const fetchServedStats = async () => {
     try {
-      const [todayData, windowsData] = await Promise.all([
-        apiRequest('/dashboard/today'),
-        apiRequest('/meal-windows').catch(() => []),
-      ]);
-      setWindowInfo({
-        name: todayData.activeWindow?.name || 'Lunch',
-        servedCount: todayData.metrics?.served?.count || 0,
-      });
-      if (Array.isArray(windowsData) && windowsData.length > 0) {
-        setMealWindows(windowsData);
-        setSelectedWindowId((prev) => prev || todayData.activeWindow?.id || windowsData[0].id);
-      }
+      const todayData = await apiRequest('/dashboard/today');
+      setServedCount(todayData.metrics?.served?.count || 0);
     } catch (e) {}
   };
 
@@ -81,9 +67,9 @@ export const CounterPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchWindowInfo();
+    fetchServedStats();
     fetchStudentsForSim();
-    const interval = setInterval(fetchWindowInfo, 15000);
+    const interval = setInterval(fetchServedStats, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -100,13 +86,13 @@ export const CounterPage: React.FC = () => {
     // Play synthesized audio chime
     if (outcome.result === 'APPROVED') {
       sound.playApprove();
-      setWindowInfo((prev) => ({ ...prev, servedCount: prev.servedCount + 1 }));
+      setServedCount((prev) => prev + 1);
     } else {
       sound.playReject();
     }
 
-    // Add to recent scans list (keep last 5)
-    setRecentScans((prev) => [outcome, ...prev.slice(0, 4)]);
+    // Add to recent scans list (keep last 30)
+    setRecentScans((prev) => [outcome, ...prev.slice(0, 29)]);
 
     // Clear previous auto-reset timer and start 4-second timeout to return to idle
     if (resetTimerRef.current) {
@@ -156,7 +142,6 @@ export const CounterPage: React.FC = () => {
           studentId: selectedStudent.id,
           manualReason,
           note: manualNote,
-          simulatedWindowId: selectedWindowId || undefined,
         }),
       });
 
@@ -172,7 +157,7 @@ export const CounterPage: React.FC = () => {
       } else {
         setManualMessage({
           type: 'error',
-          text: outcome.message || 'Meal rejected for this window.',
+          text: outcome.message || 'Meal rejected.',
         });
       }
     } catch (err: any) {
@@ -208,6 +193,24 @@ export const CounterPage: React.FC = () => {
     }
   };
 
+  // Filter recent scans by search query
+  const filteredRecentScans = recentScans.filter((scan) => {
+    if (!recentSearchQuery.trim()) return true;
+    const q = recentSearchQuery.toLowerCase().trim();
+    const name = scan.student?.name?.toLowerCase() || '';
+    const code = scan.student?.studentCode?.toLowerCase() || '';
+    const reason = scan.rejectReason?.toLowerCase() || '';
+    const method = scan.method?.toLowerCase() || '';
+    const result = scan.result?.toLowerCase() || '';
+    return (
+      name.includes(q) ||
+      code.includes(q) ||
+      reason.includes(q) ||
+      method.includes(q) ||
+      result.includes(q)
+    );
+  });
+
   return (
     <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6">
       {/* Top Banner: Device Offline Alert */}
@@ -221,34 +224,11 @@ export const CounterPage: React.FC = () => {
         </div>
       )}
 
-      {/* Header Bar: Meal Window, Served Count, Mute Toggle */}
+      {/* Header Bar: Served Count, Mute Toggle */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-card bg-surface-elevated border border-border">
-        <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-text-muted font-medium">Meal window:</span>
-            {mealWindows.length > 0 ? (
-              <select
-                value={selectedWindowId}
-                onChange={(e) => setSelectedWindowId(e.target.value ? Number(e.target.value) : '')}
-                className="text-xs sm:text-sm font-bold text-text bg-surface-subtle px-2.5 py-1 rounded-md border border-border focus:border-accent focus:outline-hidden"
-              >
-                {mealWindows.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name} ({w.start_time.slice(0, 5)} - {w.end_time.slice(0, 5)})
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <span className="text-xs sm:text-sm font-bold text-text bg-surface-subtle px-2.5 py-1 rounded-md border border-border">
-                {windowInfo.name}
-              </span>
-            )}
-          </div>
-          <div className="hidden sm:block h-4 w-[1px] bg-border" />
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-text-muted font-medium">Meals served today:</span>
-            <span className="text-xs sm:text-sm font-bold text-accent">{windowInfo.servedCount}</span>
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-text-muted font-medium">Meals served today:</span>
+          <span className="text-xs sm:text-sm font-bold text-accent">{servedCount}</span>
         </div>
 
         <button
@@ -510,21 +490,51 @@ export const CounterPage: React.FC = () => {
           </form>
         </div>
 
-        {/* Recent 5 Scans List */}
+        {/* Recent Scans List */}
         <div className="p-5 rounded-card bg-surface-elevated border border-border flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
+            <div className="flex items-center justify-between mb-3 pb-3 border-b border-border">
               <h3 className="font-bold text-sm text-text">Recent scans</h3>
-              <span className="text-[11px] text-text-muted">Last 5 outcomes</span>
+              <span className="text-[11px] text-text-muted">
+                {recentSearchQuery
+                  ? `${filteredRecentScans.length} of ${recentScans.length}`
+                  : `${recentScans.length} logged`}
+              </span>
+            </div>
+
+            {/* Search Bar at the top of Recent Scans */}
+            <div className="relative mb-3">
+              <Search className="w-3.5 h-3.5 text-text-muted absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={recentSearchQuery}
+                onChange={(e) => setRecentSearchQuery(e.target.value)}
+                placeholder="Search recent scans..."
+                className="w-full pl-8 pr-7 py-1.5 bg-surface text-xs rounded-lg border border-border focus:border-accent focus:outline-hidden"
+              />
+              {recentSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setRecentSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text p-0.5 rounded cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
             {recentScans.length === 0 ? (
-              <div className="py-12 text-center text-xs text-text-muted">
+              <div className="py-10 text-center text-xs text-text-muted">
                 No recent scans during this session.
               </div>
+            ) : filteredRecentScans.length === 0 ? (
+              <div className="py-10 text-center text-xs text-text-muted">
+                No recent scans match &quot;{recentSearchQuery}&quot;
+              </div>
             ) : (
-              <div className="divide-y divide-border">
-                {recentScans.map((scan, idx) => {
+              <div className="divide-y divide-border max-h-72 overflow-y-auto pr-1">
+                {filteredRecentScans.map((scan, idx) => {
                   const isApproved = scan.result === 'APPROVED';
                   const isManual = scan.method === 'MANUAL';
                   return (
