@@ -82,7 +82,7 @@ export const StudentProfilePage: React.FC = () => {
     try {
       const res = await apiRequest(`/meals?studentId=${id}&limit=50`);
       setMealLogs(res.data);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const fetchLedger = async () => {
@@ -90,7 +90,7 @@ export const StudentProfilePage: React.FC = () => {
     try {
       const res = await apiRequest(`/students/${id}/ledger?limit=50`);
       setLedgerEntries(res.data);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   useEffect(() => {
@@ -402,11 +402,10 @@ export const StudentProfilePage: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`pb-3 flex items-center gap-2 border-b-2 flex-shrink-0 transition-colors ${
-                activeTab === tab.id
+              className={`pb-3 flex items-center gap-2 border-b-2 flex-shrink-0 transition-colors ${activeTab === tab.id
                   ? 'border-accent text-accent'
                   : 'border-transparent text-text-muted hover:text-text'
-              }`}
+                }`}
             >
               <Icon className="w-4 h-4" />
               <span>{tab.label}</span>
@@ -521,9 +520,8 @@ export const StudentProfilePage: React.FC = () => {
               <div key={f.id} className="py-3 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`p-2 rounded-lg ${
-                      f.is_active ? 'bg-accent/10 text-accent' : 'bg-surface-subtle text-text-muted'
-                    }`}
+                    className={`p-2 rounded-lg ${f.is_active ? 'bg-accent/10 text-accent' : 'bg-surface-subtle text-text-muted'
+                      }`}
                   >
                     <Fingerprint className="w-4 h-4" />
                   </div>
@@ -681,9 +679,8 @@ export const StudentProfilePage: React.FC = () => {
                       </td>
                       <td className="py-2.5 px-4 text-center">
                         <span
-                          className={`font-bold font-mono ${
-                            l.change_amount > 0 ? 'text-success' : 'text-danger'
-                          }`}
+                          className={`font-bold font-mono ${l.change_amount > 0 ? 'text-success' : 'text-danger'
+                            }`}
                         >
                           {l.change_amount > 0 ? `+${l.change_amount}` : l.change_amount}
                         </span>

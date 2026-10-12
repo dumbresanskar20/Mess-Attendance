@@ -68,6 +68,29 @@ router.post(
   }
 );
 
+// POST /api/meals/scan (Counter Screen Inbuilt Biometric / Authenticated Scan)
+router.post(
+  '/meals/scan',
+  authenticateJWT,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const parsed = scanSchema.parse(req.body);
+      const outcome = await scanService.processScan({
+        deviceUserId: parsed.deviceUserId,
+        fingerprintId: parsed.fingerprintId,
+        studentId: parsed.studentId,
+        deviceId: parsed.deviceId || 'DEV-INBUILT-SCANNER',
+        eventId: parsed.eventId || parsed.event_id || `EVT_INBUILT_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
+        simulatedWindowId: parsed.simulatedWindowId,
+      });
+
+      res.json(outcome);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 
 // POST /api/meals/manual (Counter Staff Manual Entry)
 router.post(

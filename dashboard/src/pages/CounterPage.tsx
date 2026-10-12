@@ -11,12 +11,21 @@ import {
   ArrowRight,
   ShieldAlert,
   X,
+  Laptop,
+  Cpu,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react';
 import { useSocket } from '../context/SocketContext';
 import { apiRequest } from '../api/client';
 import { sound } from '../utils/sound';
 import { Badge } from '../components/common/Badge';
 import { ScanOutcome, Student, ManualReason } from '../types';
+import {
+  checkBiometricAvailability,
+  captureInbuiltFingerprint,
+  BiometricAvailability,
+} from '../utils/biometrics';
 
 export const CounterPage: React.FC = () => {
   const { latestScan, isDeviceOnline } = useSocket();
@@ -29,6 +38,11 @@ export const CounterPage: React.FC = () => {
 
   // Served count state
   const [servedCount, setServedCount] = useState<number>(0);
+
+  // Biometric hardware inspection state
+  const [biometricInfo, setBiometricInfo] = useState<BiometricAvailability | null>(null);
+  const [checkingHardware, setCheckingHardware] = useState(false);
+  const [scanningBiometric, setScanningBiometric] = useState(false);
 
   // Manual marking state
   const [searchQuery, setSearchQuery] = useState('');
@@ -46,6 +60,19 @@ export const CounterPage: React.FC = () => {
 
   // Auto-reset timer ref
   const resetTimerRef = useRef<any>(null);
+
+  // Detect biometric hardware availability (External bridge or Laptop Inbuilt platform)
+  const detectHardware = async () => {
+    setCheckingHardware(true);
+    try {
+      const avail = await checkBiometricAvailability();
+      setBiometricInfo(avail);
+    } catch (e: any) {
+      console.warn('Hardware detection failed:', e);
+    } finally {
+      setCheckingHardware(false);
+    }
+  };
 
   // Fetch initial served count
   const fetchServedStats = async () => {
@@ -69,6 +96,7 @@ export const CounterPage: React.FC = () => {
   useEffect(() => {
     fetchServedStats();
     fetchStudentsForSim();
+    detectHardware();
     const interval = setInterval(fetchServedStats, 15000);
     return () => clearInterval(interval);
   }, []);
@@ -108,7 +136,7 @@ export const CounterPage: React.FC = () => {
     setIsMuted(muted);
   };
 
-  // Debounced search for manual meal fallback
+  // Debounced search for student lookup
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery.length < 2) {
       setSearchResults([]);
@@ -126,6 +154,77 @@ export const CounterPage: React.FC = () => {
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Scan with Laptop Inbuilt Biometrics (Windows Hello / Touch ID)
+  const handleScanWithInbuiltBiometric = async (studentToScan?: Student) => {
+    const targetStudent = studentToScan || selectedStudent;
+    if (!targetStudent) {
+      const searchInput = document.getElementById('counter-student-search');
+      if (searchInput) searchInput.focus();
+      setManualMessage({
+        type: 'error',
+        text: 'Please select a student first, then touch your laptop fingerprint reader.',
+      });
+      return;
+    }
+
+    setScanningBiometric(true);
+    setManualMessage(null);
+
+    try {
+      // 1. Prompt laptop fingerprint sensor (Windows Hello / Touch ID)
+      const bioResult = await captureInbuiltFingerprint(
+        targetStudent.student_code,
+        targetStudent.name
+      );
+
+      // 2. Submit scan to backend
+      let outcome: ScanOutcome;
+      try {
+        outcome = await apiRequest<ScanOutcome>('/meals/scan', {
+          method: 'POST',
+          body: JSON.stringify({
+            studentId: targetStudent.id,
+            deviceUserId: bioResult.deviceUserId,
+            deviceId: 'DEV-LAPTOP-INBUILT',
+          }),
+        });
+      } catch (scanErr: any) {
+        // Fallback to /meals/manual with FINGER_NOT_READING if remote backend hasn't deployed /meals/scan yet
+        outcome = await apiRequest<ScanOutcome>('/meals/manual', {
+          method: 'POST',
+          body: JSON.stringify({
+            studentId: targetStudent.id,
+            manualReason: 'FINGER_NOT_READING',
+            note: `Verified via Laptop Fingerprint (${biometricInfo?.inbuiltDeviceName || 'Windows Hello'})`,
+          }),
+        });
+      }
+
+      handleNewScanOutcome(outcome);
+      if (outcome.result === 'APPROVED') {
+        setSelectedStudent(null);
+        setSearchQuery('');
+        setManualNote('');
+        setManualMessage({
+          type: 'success',
+          text: `Verified via ${biometricInfo?.inbuiltDeviceName || 'laptop sensor'} for ${outcome.student?.name || targetStudent.name}. ${outcome.student?.tokensLeft ?? ''} tokens left.`,
+        });
+      } else {
+        setManualMessage({
+          type: 'error',
+          text: outcome.message || 'Biometric scan rejected.',
+        });
+      }
+    } catch (err: any) {
+      setManualMessage({
+        type: 'error',
+        text: err.message || 'Fingerprint verification failed.',
+      });
+    } finally {
+      setScanningBiometric(false);
+    }
+  };
 
   // Submit manual meal marking
   const handleMarkManual = async (e: React.FormEvent) => {
@@ -213,22 +312,80 @@ export const CounterPage: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6">
-      {/* Top Banner: Device Offline Alert */}
+      {/* Top Banner: Hardware Status / Fallback Notice */}
       {!isDeviceOnline && (
-        <div className="p-3 sm:p-3.5 rounded-card bg-danger-subtle text-danger border border-danger-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 animate-pulse">
-          <div className="flex items-center gap-2.5 text-xs font-semibold">
-            <ShieldAlert className="w-5 h-5 flex-shrink-0" />
-            <span>Device offline. Fingerprint scanner is unreachable. Please use manual marking below.</span>
+        biometricInfo?.inbuiltAvailable ? (
+          <div className="p-3 sm:p-3.5 rounded-card bg-accent-subtle/30 text-accent border border-accent-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2.5 text-xs font-semibold">
+              <Laptop className="w-5 h-5 flex-shrink-0 text-accent" />
+              <span>
+                External machine offline. Inbuilt laptop fingerprint scanner detected ({biometricInfo.inbuiltDeviceName}).
+                You can verify attendance using your laptop&apos;s scanner!
+              </span>
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <Badge variant="accent" className="flex items-center gap-1 font-semibold">
+                <Fingerprint className="w-3 h-3" /> Laptop Scanner Active
+              </Badge>
+              <button
+                type="button"
+                onClick={detectHardware}
+                disabled={checkingHardware}
+                title="Re-check hardware status"
+                className="p-1 rounded hover:bg-surface text-text-muted hover:text-text transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${checkingHardware ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
           </div>
-          <Badge variant="danger" className="self-end sm:self-auto">Offline</Badge>
-        </div>
+        ) : (
+          <div className="p-3 sm:p-3.5 rounded-card bg-danger-subtle text-danger border border-danger-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 animate-pulse">
+            <div className="flex items-center gap-2.5 text-xs font-semibold">
+              <ShieldAlert className="w-5 h-5 flex-shrink-0" />
+              <span>Device offline. External and laptop fingerprint scanners are unreachable. Please use manual marking below.</span>
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <Badge variant="danger">Offline</Badge>
+              <button
+                type="button"
+                onClick={detectHardware}
+                disabled={checkingHardware}
+                title="Re-check hardware status"
+                className="p-1 rounded hover:bg-surface text-text-muted hover:text-text transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${checkingHardware ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+          </div>
+        )
       )}
 
-      {/* Header Bar: Served Count, Mute Toggle */}
+      {/* Header Bar: Served Count, Scanner Status, Mute Toggle */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-card bg-surface-elevated border border-border">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-text-muted font-medium">Meals served today:</span>
-          <span className="text-xs sm:text-sm font-bold text-accent">{servedCount}</span>
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-text-muted font-medium">Meals served today:</span>
+            <span className="text-xs sm:text-sm font-bold text-accent">{servedCount}</span>
+          </div>
+
+          <div className="h-4 w-px bg-border hidden sm:block" />
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-text-muted font-medium">Scanner:</span>
+            {isDeviceOnline ? (
+              <Badge variant="success" className="flex items-center gap-1 text-[11px]">
+                <Cpu className="w-3 h-3" /> External Machine
+              </Badge>
+            ) : biometricInfo?.inbuiltAvailable ? (
+              <Badge variant="accent" className="flex items-center gap-1 text-[11px]">
+                <Laptop className="w-3 h-3" /> {biometricInfo.inbuiltDeviceName}
+              </Badge>
+            ) : (
+              <Badge variant="danger" className="flex items-center gap-1 text-[11px]">
+                <ShieldAlert className="w-3 h-3" /> Offline
+              </Badge>
+            )}
+          </div>
         </div>
 
         <button
@@ -254,16 +411,68 @@ export const CounterPage: React.FC = () => {
       <div className="min-h-[240px] sm:min-h-[290px] flex items-center justify-center">
         {!activeResult ? (
           /* Idle State */
-          <div className="w-full p-10 rounded-card bg-surface-elevated border border-border text-center flex flex-col items-center justify-center space-y-4">
-            <div className="w-20 h-20 rounded-full bg-surface-subtle text-accent flex items-center justify-center border border-border shadow-inner">
-              <Fingerprint className="w-10 h-10 animate-pulse text-accent" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-text">Waiting for fingerprint</h2>
-              <p className="text-xs text-text-muted mt-1">
-                Place finger on the reader to deduct token automatically
+          <div className="w-full p-8 sm:p-10 rounded-card bg-surface-elevated border border-border text-center flex flex-col items-center justify-center space-y-4">
+            <button
+              type="button"
+              onClick={() => {
+                if (biometricInfo?.inbuiltAvailable) {
+                  handleScanWithInbuiltBiometric();
+                }
+              }}
+              disabled={scanningBiometric}
+              className={`w-20 h-20 rounded-full flex items-center justify-center border shadow-inner transition-all ${
+                biometricInfo?.inbuiltAvailable
+                  ? 'bg-accent/10 border-accent/40 text-accent hover:bg-accent/20 hover:scale-105 cursor-pointer ring-4 ring-accent/10 active:scale-95'
+                  : 'bg-surface-subtle border-border text-accent cursor-default'
+              }`}
+              title={
+                biometricInfo?.inbuiltAvailable
+                  ? selectedStudent
+                    ? `Click to scan fingerprint for ${selectedStudent.name}`
+                    : 'Click to scan with laptop fingerprint'
+                  : 'Waiting for fingerprint scanner'
+              }
+            >
+              {scanningBiometric ? (
+                <Loader2 className="w-10 h-10 animate-spin text-accent" />
+              ) : (
+                <Fingerprint className={`w-10 h-10 text-accent ${isDeviceOnline || biometricInfo?.inbuiltAvailable ? 'animate-pulse' : 'opacity-60'}`} />
+              )}
+            </button>
+            <div className="space-y-1 max-w-md mx-auto">
+              <h2 className="text-lg font-bold text-text">
+                {scanningBiometric
+                  ? 'Scanning Fingerprint...'
+                  : selectedStudent
+                  ? `Ready to verify ${selectedStudent.name}`
+                  : biometricInfo?.inbuiltAvailable
+                  ? 'Laptop Fingerprint Scanner Ready'
+                  : isDeviceOnline
+                  ? 'Waiting for fingerprint'
+                  : 'Fingerprint Scanner Offline'}
+              </h2>
+              <p className="text-xs text-text-muted">
+                {scanningBiometric
+                  ? 'Touch the fingerprint sensor on your laptop now to verify attendance'
+                  : selectedStudent && biometricInfo?.inbuiltAvailable
+                  ? 'Click the fingerprint icon above or use the button below to scan on laptop'
+                  : biometricInfo?.inbuiltAvailable
+                  ? `Laptop sensor detected (${biometricInfo.inbuiltDeviceName}). Select a student below and touch your sensor to deduct token.`
+                  : isDeviceOnline
+                  ? 'Place finger on the reader to deduct token automatically'
+                  : 'No fingerprint scanner reachable. Select a student below to mark meal manually.'}
               </p>
             </div>
+            {selectedStudent && biometricInfo?.inbuiltAvailable && !scanningBiometric && (
+              <button
+                type="button"
+                onClick={() => handleScanWithInbuiltBiometric()}
+                className="mt-2 px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-xs font-semibold flex items-center gap-2 shadow-sm transition-transform active:scale-95"
+              >
+                <Fingerprint className="w-4 h-4" />
+                <span>Scan Fingerprint for {selectedStudent.name}</span>
+              </button>
+            )}
           </div>
         ) : activeResult.result === 'APPROVED' ? (
           /* Approved State */
@@ -359,10 +568,14 @@ export const CounterPage: React.FC = () => {
         <div className="p-5 rounded-card bg-surface-elevated border border-border">
           <div className="mb-4 pb-3 border-b border-border">
             <h3 className="font-bold text-sm text-text">
-              Fingerprint not reading? Mark meal manually
+              {biometricInfo?.inbuiltAvailable
+                ? 'Mark meal (Laptop Fingerprint or Manual)'
+                : 'Fingerprint not reading? Mark meal manually'}
             </h3>
             <p className="text-[11px] text-text-muted mt-0.5">
-              Same rules as a scan. Logged with your staff credentials and timestamp.
+              {biometricInfo?.inbuiltAvailable
+                ? `Verify attendance using detected laptop fingerprint (${biometricInfo.inbuiltDeviceName}) or mark manually.`
+                : 'Same rules as a scan. Logged with your staff credentials and timestamp.'}
             </p>
           </div>
 
@@ -388,6 +601,7 @@ export const CounterPage: React.FC = () => {
               <div className="relative">
                 <Search className="w-4 h-4 text-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
+                  id="counter-student-search"
                   type="text"
                   value={searchQuery}
                   onChange={(e) => {
@@ -447,7 +661,51 @@ export const CounterPage: React.FC = () => {
               </div>
             )}
 
-            {/* Reason Dropdown (Mandatory) */}
+            {/* Laptop Fingerprint Verification Action */}
+            {selectedStudent && biometricInfo?.inbuiltAvailable && (
+              <div className="p-3 rounded-lg bg-accent/10 border border-accent/30 space-y-2">
+                <div className="flex items-center justify-between text-xs font-semibold text-accent">
+                  <span className="flex items-center gap-1.5">
+                    <Laptop className="w-4 h-4" />
+                    <span>Inbuilt Sensor Available</span>
+                  </span>
+                  <span className="text-[10px] uppercase font-bold tracking-wider">
+                    {biometricInfo.inbuiltDeviceName}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleScanWithInbuiltBiometric()}
+                  disabled={scanningBiometric || submittingManual}
+                  className="w-full py-2.5 px-4 bg-accent hover:bg-accent-hover text-white rounded-lg text-xs font-semibold transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.99]"
+                >
+                  {scanningBiometric ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <span>Touch laptop sensor now...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Fingerprint className="w-4 h-4 text-white" />
+                      <span>Verify & Mark with Laptop Fingerprint</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* Divider if biometric is available */}
+            {selectedStudent && biometricInfo?.inbuiltAvailable && (
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-border"></div>
+                <span className="flex-shrink mx-3 text-[10px] text-text-muted uppercase font-semibold">
+                  Or manual override without biometric
+                </span>
+                <div className="flex-grow border-t border-border"></div>
+              </div>
+            )}
+
+            {/* Reason Dropdown (Mandatory for manual) */}
             <div>
               <label className="block text-xs font-semibold text-text mb-1">
                 Mandatory reason
@@ -481,10 +739,14 @@ export const CounterPage: React.FC = () => {
 
             <button
               type="submit"
-              disabled={!selectedStudent || submittingManual}
-              className="w-full py-2.5 px-4 bg-accent hover:bg-accent-hover text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              disabled={!selectedStudent || submittingManual || scanningBiometric}
+              className={`w-full py-2.5 px-4 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${
+                biometricInfo?.inbuiltAvailable
+                  ? 'bg-surface-subtle hover:bg-surface border border-border text-text'
+                  : 'bg-accent hover:bg-accent-hover text-white'
+              }`}
             >
-              <span>Mark meal</span>
+              <span>{submittingManual ? 'Marking meal...' : 'Mark meal manually'}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </form>

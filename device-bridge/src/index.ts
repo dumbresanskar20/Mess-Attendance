@@ -12,7 +12,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
 
 import { APP_URLS } from './urls';
 
-const PORT = process.env.BRIDGE_PORT || process.env.PORT || 4001;
+const PORT = process.env.BRIDGE_PORT || (process.env.PORT && process.env.PORT !== '4000' ? process.env.PORT : 4001);
 const BACKEND_URL = (
   process.env.BACKEND_URL ||
   (process.env.NODE_ENV === 'production'
