@@ -164,4 +164,30 @@ router.post(
   }
 );
 
+// POST /api/students/:id/activate
+router.post(
+  '/:id/activate',
+  authenticateJWT,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const student = await studentService.activateStudent(req.params.id as string);
+
+      await logAudit({
+        adminId: req.user!.id,
+        action: 'STUDENT_ACTIVATE',
+        targetType: 'STUDENT',
+        targetId: String(req.params.id),
+        ip: getClientIp(req),
+      });
+
+      res.json({
+        message: 'Student and associated fingerprints activated successfully',
+        student,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export default router;

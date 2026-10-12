@@ -130,10 +130,17 @@ export async function apiRequest<T = any>(
   }
 
   if (!response.ok) {
-    const errorMsg =
+    let errorMsg =
       (data && typeof data === 'object' && data.error?.message) ||
       (typeof data === 'string' && data) ||
       'An error occurred with the request';
+
+    // If the server returned an HTML error page (e.g. Express 404 <pre>Cannot POST ...</pre>), extract clean text
+    if (typeof errorMsg === 'string' && errorMsg.includes('<html')) {
+      const match = errorMsg.match(/<pre>(.*?)<\/pre>/i);
+      errorMsg = match ? match[1] : `Request failed with status ${response.status}`;
+    }
+
     throw new Error(errorMsg);
   }
 

@@ -23,7 +23,7 @@ export const StudentsPage: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | 'expiring' | 'low_balance' | 'few_fingers'>('all');
+  const [filter, setFilter] = useState<'all' | 'expiring' | 'low_balance' | 'few_fingers' | 'inactive'>('all');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -71,6 +71,43 @@ export const StudentsPage: React.FC = () => {
     }, 300);
     return () => clearTimeout(timer);
   }, [search]);
+
+  const handleToggleStudentStatus = async (student: Student) => {
+    const isActivating = student.status === 'INACTIVE';
+    const confirmMsg = isActivating
+      ? `Are you sure you want to activate student ${student.name} (${student.student_code})? This will restore their account and reactivate non-purged fingerprints.`
+      : `Deactivating student ${student.name} (${student.student_code}) will also disable all their fingerprints. Their history will remain intact. Proceed?`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      if (isActivating) {
+        try {
+          await apiRequest(`/students/${student.id}/activate`, { method: 'POST' });
+        } catch (err: any) {
+          // Fallback to PATCH if backend has not deployed POST /activate yet
+          if (
+            err.message &&
+            (err.message.includes('Cannot POST') ||
+              err.message.includes('404') ||
+              err.message.includes('Not Found'))
+          ) {
+            await apiRequest(`/students/${student.id}`, {
+              method: 'PATCH',
+              body: JSON.stringify({ status: 'ACTIVE' }),
+            });
+          } else {
+            throw err;
+          }
+        }
+      } else {
+        await apiRequest(`/students/${student.id}/deactivate`, { method: 'POST' });
+      }
+      fetchStudents();
+    } catch (err: any) {
+      alert(err.message || `Failed to ${isActivating ? 'activate' : 'deactivate'} student`);
+    }
+  };
 
   const handleAddStudent = (e: React.FormEvent) => {
     e.preventDefault();
@@ -174,6 +211,7 @@ export const StudentsPage: React.FC = () => {
               { id: 'expiring', label: 'Expiring soon' },
               { id: 'low_balance', label: 'Low balance (≤ 4)' },
               { id: 'few_fingers', label: '< 2 Fingers' },
+              { id: 'inactive', label: 'Inactive' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -247,14 +285,14 @@ export const StudentsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border/50 text-text-muted">
-                  <div className="flex items-center gap-1.5 truncate max-w-[180px]">
+                <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-border/50 text-text-muted">
+                  <div className="flex items-center gap-1.5 truncate max-w-[140px]">
                     <span className="font-medium text-text truncate">
                       {s.active_plan || 'No plan'}
                     </span>
                     {s.plan_end_date && <span>&bull; {s.plan_end_date}</span>}
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     <span
                       className={`inline-flex items-center gap-0.5 font-semibold ${
                         s.finger_count < 2 ? 'text-warning' : 'text-text-muted'
@@ -266,6 +304,23 @@ export const StudentsPage: React.FC = () => {
                     <Badge variant={s.status === 'ACTIVE' ? 'success' : 'neutral'}>
                       {s.status}
                     </Badge>
+                    {s.status === 'ACTIVE' ? (
+                      <button
+                        onClick={() => handleToggleStudentStatus(s)}
+                        className="px-2 py-0.5 text-[10px] font-semibold rounded border border-border text-text-muted hover:text-danger hover:bg-danger-subtle transition-colors"
+                        title="Deactivate student"
+                      >
+                        Deactivate
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleToggleStudentStatus(s)}
+                        className="px-2 py-0.5 text-[10px] font-semibold rounded border border-success/30 bg-success/10 text-success hover:bg-success/20 transition-colors"
+                        title="Activate student"
+                      >
+                        Activate
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -285,20 +340,21 @@ export const StudentsPage: React.FC = () => {
                 <th className="py-3 px-4">Plan end date</th>
                 <th className="py-3 px-4 text-center">Fingers</th>
                 <th className="py-3 px-4 text-center">Status</th>
+                <th className="py-3 px-4 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border text-xs">
               {loading ? (
                 [...Array(6)].map((_, i) => (
                   <tr key={i}>
-                    <td colSpan={7} className="py-3 px-4">
+                    <td colSpan={8} className="py-3 px-4">
                       <Skeleton className="h-6 w-full" />
                     </td>
                   </tr>
                 ))
               ) : students.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-xs text-text-muted">
+                  <td colSpan={8} className="py-12 text-center text-xs text-text-muted">
                     No students found matching your criteria.
                   </td>
                 </tr>
@@ -371,6 +427,26 @@ export const StudentsPage: React.FC = () => {
                       <Badge variant={s.status === 'ACTIVE' ? 'success' : 'neutral'}>
                         {s.status}
                       </Badge>
+                    </td>
+
+                    <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                      {s.status === 'ACTIVE' ? (
+                        <button
+                          onClick={() => handleToggleStudentStatus(s)}
+                          className="px-2.5 py-1 text-[11px] font-medium rounded border border-border text-text-muted hover:text-danger hover:bg-danger-subtle transition-colors"
+                          title="Deactivate student and fingerprints"
+                        >
+                          Deactivate
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleToggleStudentStatus(s)}
+                          className="px-2.5 py-1 text-[11px] font-medium rounded border border-success/30 bg-success/10 text-success hover:bg-success/20 transition-colors"
+                          title="Activate student and restore fingerprints"
+                        >
+                          Activate
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

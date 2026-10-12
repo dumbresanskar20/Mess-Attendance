@@ -15,6 +15,7 @@ import {
   Calendar,
   Phone,
   UserX,
+  UserCheck,
 } from 'lucide-react';
 import { apiRequest } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -188,6 +189,16 @@ export const StudentProfilePage: React.FC = () => {
     }
   };
 
+  // Activate Fingerprint
+  const handleActivateFinger = async (fingerId: number) => {
+    try {
+      await apiRequest(`/fingerprints/${fingerId}/activate`, { method: 'POST' });
+      fetchStudentData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to activate fingerprint');
+    }
+  };
+
   // Deactivate Student
   const handleDeactivateStudent = async () => {
     if (
@@ -201,6 +212,39 @@ export const StudentProfilePage: React.FC = () => {
       fetchStudentData();
     } catch (err: any) {
       alert(err.message || 'Failed to deactivate student');
+    }
+  };
+
+  // Activate Student
+  const handleActivateStudent = async () => {
+    if (
+      !window.confirm(
+        'Activating this student will restore their account and reactivate non-purged fingerprints. Proceed?'
+      )
+    )
+      return;
+    try {
+      try {
+        await apiRequest(`/students/${id}/activate`, { method: 'POST' });
+      } catch (err: any) {
+        // Fallback to PATCH if backend has not deployed POST /activate yet
+        if (
+          err.message &&
+          (err.message.includes('Cannot POST') ||
+            err.message.includes('404') ||
+            err.message.includes('Not Found'))
+        ) {
+          await apiRequest(`/students/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status: 'ACTIVE' }),
+          });
+        } else {
+          throw err;
+        }
+      }
+      fetchStudentData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to activate student');
     }
   };
 
@@ -259,6 +303,25 @@ export const StudentProfilePage: React.FC = () => {
         </div>
       )}
 
+      {/* Inactive Student Warning Banner */}
+      {student.status === 'INACTIVE' && (
+        <div className="p-3 sm:p-3.5 rounded-card bg-danger-subtle text-danger border border-danger-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs">
+          <div className="flex items-center gap-2 font-medium">
+            <UserX className="w-4 h-4 flex-shrink-0" />
+            <span>
+              This student account is currently <strong>deactivated</strong>. Scans at the meal counter will be rejected.
+            </span>
+          </div>
+          <button
+            onClick={handleActivateStudent}
+            className="self-end sm:self-auto px-3 py-1 bg-success hover:bg-success/90 text-white font-semibold rounded text-xs transition-colors flex items-center gap-1.5 shadow-xs"
+          >
+            <UserCheck className="w-3.5 h-3.5" />
+            <span>Activate student</span>
+          </button>
+        </div>
+      )}
+
       {/* Profile Header Card */}
       <div className="p-4 sm:p-6 rounded-card bg-surface-elevated border border-border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
         <div className="flex items-start sm:items-center gap-3.5 sm:gap-4 w-full md:w-auto">
@@ -304,13 +367,23 @@ export const StudentProfilePage: React.FC = () => {
             <span className="text-xl sm:text-2xl font-black text-accent">{student.tokens_left}</span>
           </div>
 
-          {student.status === 'ACTIVE' && (
+          {student.status === 'ACTIVE' ? (
             <button
               onClick={handleDeactivateStudent}
-              className="p-2.5 rounded-lg border border-border hover:bg-danger-subtle text-text-muted hover:text-danger transition-colors flex-shrink-0"
+              className="px-3 py-2.5 rounded-lg border border-border hover:bg-danger-subtle text-text-muted hover:text-danger transition-colors flex items-center gap-1.5 flex-shrink-0 text-xs font-semibold"
               title="Deactivate student and all fingerprints"
             >
               <UserX className="w-4 h-4" />
+              <span>Deactivate</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleActivateStudent}
+              className="px-3 py-2.5 rounded-lg border border-success/30 bg-success/10 hover:bg-success/20 text-success transition-colors flex items-center gap-1.5 flex-shrink-0 text-xs font-semibold"
+              title="Activate student and restore fingerprints"
+            >
+              <UserCheck className="w-4 h-4" />
+              <span>Activate</span>
             </button>
           )}
         </div>
@@ -473,13 +546,22 @@ export const StudentProfilePage: React.FC = () => {
                     {f.is_active ? 'Active' : 'Inactive'}
                   </Badge>
 
-                  {f.is_active && (
+                  {f.is_active ? (
                     <button
                       onClick={() => handleDeactivateFinger(f.id)}
                       className="px-2 py-1 bg-surface-subtle hover:bg-surface border border-border rounded text-[11px] font-medium text-text-muted hover:text-text transition-colors"
                     >
                       Deactivate
                     </button>
+                  ) : (
+                    !f.purged_at && (
+                      <button
+                        onClick={() => handleActivateFinger(f.id)}
+                        className="px-2 py-1 bg-success/10 hover:bg-success/20 text-success border border-success/30 rounded text-[11px] font-medium transition-colors"
+                      >
+                        Activate
+                      </button>
+                    )
                   )}
 
                   {isOwner && !f.purged_at && (

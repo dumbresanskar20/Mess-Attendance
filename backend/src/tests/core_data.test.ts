@@ -179,4 +179,14 @@ describe('Phase 2: Core Data (Students, Plans, Ledger, Audit, Staff)', () => {
     expect(res.status).toBe(200);
     expect(res.body.student.status).toBe('INACTIVE');
   });
+
+  it('should reactivate student and their fingerprints', async () => {
+    const res = await request(app)
+      .post(`/api/students/${createdStudentId}/activate`)
+      .set('Authorization', `Bearer ${ownerToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.student.status).toBe('ACTIVE');
+    expect(res.body.student.finger_count).toBe(0);
+  });
 });

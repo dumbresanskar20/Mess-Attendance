@@ -188,6 +188,41 @@ router.post(
   }
 );
 
+// POST /api/fingerprints/:id/activate
+router.post(
+  '/fingerprints/:id/activate',
+  authenticateJWT,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const fingerprint = await db('fingerprints').where('id', req.params.id).first();
+      if (!fingerprint) {
+        throw new NotFoundError(`Fingerprint with ID ${req.params.id} not found`);
+      }
+
+      if (fingerprint.purged_at || fingerprint.iv === 'PURGED') {
+        throw new AppError('Cannot reactivate a purged biometric template. Please re-enroll the fingerprint.', 400);
+      }
+
+      await db('fingerprints').where('id', req.params.id).update({
+        is_active: true,
+      });
+
+      await logAudit({
+        adminId: req.user!.id,
+        action: 'FINGERPRINT_ACTIVATE',
+        targetType: 'FINGERPRINT',
+        targetId: String(req.params.id),
+        detail: { studentId: fingerprint.student_id, finger_label: fingerprint.finger_label },
+        ip: getClientIp(req),
+      });
+
+      res.json({ success: true, message: 'Fingerprint activated' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // POST /api/fingerprints/:id/purge (OWNER only: Permanently erase biometric template)
 router.post(
   '/fingerprints/:id/purge',

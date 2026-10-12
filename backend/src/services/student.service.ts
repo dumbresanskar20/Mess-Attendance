@@ -5,7 +5,7 @@ import { encryptTemplate } from '../utils/crypto';
 export interface StudentFilterParams {
   search?: string;
   status?: 'ACTIVE' | 'INACTIVE';
-  filter?: 'all' | 'expiring' | 'low_balance' | 'few_fingers';
+  filter?: 'all' | 'expiring' | 'low_balance' | 'few_fingers' | 'inactive';
   page?: number;
   limit?: number;
 }
@@ -91,6 +91,8 @@ export async function listStudents(params: StudentFilterParams) {
     query = query.whereRaw('COALESCE(sb.balance, 0) <= 4');
   } else if (params.filter === 'few_fingers') {
     query = query.whereRaw('COALESCE(fc.finger_count, 0) < 2');
+  } else if (params.filter === 'inactive') {
+    query = query.where('s.status', 'INACTIVE');
   }
 
   // Count total matching
@@ -137,6 +139,8 @@ export async function listStudents(params: StudentFilterParams) {
     countQuery.whereRaw('COALESCE(sb.balance, 0) <= 4');
   } else if (params.filter === 'few_fingers') {
     countQuery.whereRaw('COALESCE(fc.finger_count, 0) < 2');
+  } else if (params.filter === 'inactive') {
+    countQuery.where('s.status', 'INACTIVE');
   }
 
   const [totalResult] = await countQuery.count('s.id as total');
@@ -322,15 +326,30 @@ export async function updateStudent(
     throw new NotFoundError(`Student with ID ${id} not found`);
   }
 
-  await db('students')
-    .where('id', id)
-    .update({
-      ...(data.name && { name: data.name.trim() }),
-      ...(data.phone && { phone: data.phone.trim() }),
-      ...(data.photo_path !== undefined && { photo_path: data.photo_path }),
-      ...(data.status && { status: data.status }),
-      updated_at: new Date(),
-    });
+  await db.transaction(async (trx) => {
+    await trx('students')
+      .where('id', id)
+      .update({
+        ...(data.name && { name: data.name.trim() }),
+        ...(data.phone && { phone: data.phone.trim() }),
+        ...(data.photo_path !== undefined && { photo_path: data.photo_path }),
+        ...(data.status && { status: data.status }),
+        updated_at: new Date(),
+      });
+
+    if (data.status === 'INACTIVE') {
+      await trx('fingerprints').where('student_id', id).update({
+        is_active: false,
+      });
+    } else if (data.status === 'ACTIVE') {
+      await trx('fingerprints')
+        .where('student_id', id)
+        .whereNull('purged_at')
+        .update({
+          is_active: true,
+        });
+    }
+  });
 
   return getStudentById(id);
 }
@@ -352,6 +371,31 @@ export async function deactivateStudent(id: string | number) {
     await trx('fingerprints').where('student_id', id).update({
       is_active: false,
     });
+  });
+
+  return getStudentById(id);
+}
+
+export async function activateStudent(id: string | number) {
+  const student = await db('students').where('id', id).first();
+  if (!student) {
+    throw new NotFoundError(`Student with ID ${id} not found`);
+  }
+
+  await db.transaction(async (trx) => {
+    // 1. Activate student
+    await trx('students').where('id', id).update({
+      status: 'ACTIVE',
+      updated_at: new Date(),
+    });
+
+    // 2. Reactivate unpurged fingerprints
+    await trx('fingerprints')
+      .where('student_id', id)
+      .whereNull('purged_at')
+      .update({
+        is_active: true,
+      });
   });
 
   return getStudentById(id);
