@@ -16,13 +16,24 @@ import {
   WifiOff,
   Menu,
   X,
+  Laptop,
+  Cpu,
+  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 
 export const AppLayout: React.FC = () => {
   const { user, isOwner, logout } = useAuth();
-  const { isDeviceOnline } = useSocket();
+  const {
+    isDeviceOnline,
+    isExternalOnline,
+    isInternalOnline,
+    scannerStatus,
+    scannerName,
+    externalDeviceName,
+    internalDeviceName,
+  } = useSocket();
   const location = useLocation();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
@@ -229,29 +240,52 @@ export const AppLayout: React.FC = () => {
               {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
             </button>
 
-            {/* Device Status Pill */}
+            {/* Dual Device Status Pill */}
             <div
-              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium border transition-colors ${
-                isDeviceOnline
+              title={`Scanner Status: ${scannerName}\n• External Machine: ${isExternalOnline ? `${externalDeviceName} (Online)` : 'Offline'}\n• Laptop Sensor: ${isInternalOnline ? `${internalDeviceName} (Ready)` : 'Not detected'}`}
+              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium border transition-colors cursor-help ${
+                scannerStatus === 'BOTH'
                   ? 'bg-success-subtle text-success border-success-border'
+                  : scannerStatus === 'EXTERNAL'
+                  ? 'bg-success-subtle text-success border-success-border'
+                  : scannerStatus === 'INTERNAL'
+                  ? 'bg-accent-subtle/30 text-accent border-accent-border'
                   : 'bg-danger-subtle text-danger border-danger-border'
               }`}
             >
               <span
                 className={`w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full ${
-                  isDeviceOnline ? 'bg-success animate-pulse' : 'bg-danger'
+                  scannerStatus === 'BOTH'
+                    ? 'bg-success animate-pulse'
+                    : scannerStatus === 'EXTERNAL'
+                    ? 'bg-success animate-pulse'
+                    : scannerStatus === 'INTERNAL'
+                    ? 'bg-accent animate-pulse'
+                    : 'bg-danger'
                 }`}
               />
-              {isDeviceOnline ? (
+              {scannerStatus === 'BOTH' ? (
                 <>
-                  <Wifi className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                  <span className="hidden xs:inline sm:inline">Device online</span>
-                  <span className="xs:hidden sm:hidden">Online</span>
+                  <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-success" />
+                  <span className="hidden xs:inline sm:inline">Both Scanners Online</span>
+                  <span className="xs:hidden sm:hidden">Dual Online</span>
+                </>
+              ) : scannerStatus === 'INTERNAL' ? (
+                <>
+                  <Laptop className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-accent" />
+                  <span className="hidden xs:inline sm:inline">Laptop Scanner Online</span>
+                  <span className="xs:hidden sm:hidden">Laptop Online</span>
+                </>
+              ) : scannerStatus === 'EXTERNAL' ? (
+                <>
+                  <Cpu className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-success" />
+                  <span className="hidden xs:inline sm:inline">External Scanner Online</span>
+                  <span className="xs:hidden sm:hidden">External Online</span>
                 </>
               ) : (
                 <>
                   <WifiOff className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                  <span className="hidden xs:inline sm:inline">Device offline</span>
+                  <span className="hidden xs:inline sm:inline">Scanners Offline</span>
                   <span className="xs:hidden sm:hidden">Offline</span>
                 </>
               )}

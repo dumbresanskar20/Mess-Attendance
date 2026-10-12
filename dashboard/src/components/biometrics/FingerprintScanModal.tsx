@@ -9,6 +9,7 @@ import {
   Loader2,
   ShieldCheck,
   X,
+  Sparkles,
 } from 'lucide-react';
 import {
   checkBiometricAvailability,
@@ -36,6 +37,7 @@ export const FingerprintScanModal: React.FC<FingerprintScanModalProps> = ({
   onSuccess,
 }) => {
   const [selectedFinger, setSelectedFinger] = useState(fingerLabel);
+  const [selectedDevice, setSelectedDevice] = useState<'AUTO' | 'EXTERNAL' | 'INBUILT'>('AUTO');
   const [loadingCheck, setLoadingCheck] = useState(true);
   const [availability, setAvailability] = useState<BiometricAvailability | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -49,6 +51,13 @@ export const FingerprintScanModal: React.FC<FingerprintScanModalProps> = ({
     try {
       const avail = await checkBiometricAvailability();
       setAvailability(avail);
+      if (avail.status === 'BOTH') {
+        setSelectedDevice('INBUILT'); // Default to convenient laptop sensor if both available
+      } else if (avail.externalAvailable) {
+        setSelectedDevice('EXTERNAL');
+      } else if (avail.inbuiltAvailable) {
+        setSelectedDevice('INBUILT');
+      }
     } catch (e: any) {
       setScanError('Failed to inspect biometric hardware: ' + e.message);
     } finally {
@@ -73,7 +82,11 @@ export const FingerprintScanModal: React.FC<FingerprintScanModalProps> = ({
     setScanError(null);
 
     try {
-      if (availability.externalAvailable) {
+      const shouldCaptureExternal =
+        selectedDevice === 'EXTERNAL' ||
+        (selectedDevice === 'AUTO' && availability.externalAvailable);
+
+      if (shouldCaptureExternal && availability.externalAvailable) {
         // Capture from External Hardware Scanner
         const result = await captureExternalFingerprint(
           `ext_${studentCode.replace(/[^a-zA-Z0-9]/g, '_')}`,
@@ -159,16 +172,20 @@ export const FingerprintScanModal: React.FC<FingerprintScanModalProps> = ({
             <div className="space-y-3">
               <div
                 className={`p-3.5 rounded-xl border text-xs flex items-start gap-3 ${
-                  availability.primaryMethod === 'EXTERNAL'
+                  availability.status === 'BOTH'
                     ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                    : availability.primaryMethod === 'INBUILT'
+                    : availability.status === 'EXTERNAL'
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                    : availability.status === 'INBUILT'
                     ? 'bg-accent/10 border-accent/30 text-accent'
                     : 'bg-danger/10 border-danger/30 text-danger'
                 }`}
               >
-                {availability.primaryMethod === 'EXTERNAL' ? (
+                {availability.status === 'BOTH' ? (
+                  <Sparkles className="w-5 h-5 flex-shrink-0 text-emerald-400 mt-0.5" />
+                ) : availability.status === 'EXTERNAL' ? (
                   <Cpu className="w-5 h-5 flex-shrink-0 text-emerald-400 mt-0.5" />
-                ) : availability.primaryMethod === 'INBUILT' ? (
+                ) : availability.status === 'INBUILT' ? (
                   <Laptop className="w-5 h-5 flex-shrink-0 text-accent mt-0.5" />
                 ) : (
                   <AlertOctagon className="w-5 h-5 flex-shrink-0 text-danger mt-0.5" />
@@ -176,10 +193,12 @@ export const FingerprintScanModal: React.FC<FingerprintScanModalProps> = ({
                 <div className="flex-1">
                   <div className="font-bold flex items-center justify-between">
                     <span>
-                      {availability.primaryMethod === 'EXTERNAL'
+                      {availability.status === 'BOTH'
+                        ? 'Dual Scanners Online'
+                        : availability.status === 'EXTERNAL'
                         ? 'External Scanner Connected'
-                        : availability.primaryMethod === 'INBUILT'
-                        ? 'Device Inbuilt Sensor Detected'
+                        : availability.status === 'INBUILT'
+                        ? 'Laptop Sensor Detected'
                         : 'No Fingerprint Scanner Found'}
                     </span>
                     <button
@@ -196,6 +215,43 @@ export const FingerprintScanModal: React.FC<FingerprintScanModalProps> = ({
                   </p>
                 </div>
               </div>
+
+              {/* Device Selector when BOTH are available */}
+              {availability.status === 'BOTH' && (
+                <div className="space-y-1.5">
+                  <span className="block text-[11px] font-semibold text-text-muted">
+                    Choose scanner to enroll with:
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      disabled={scanning || !!scanSuccess}
+                      onClick={() => setSelectedDevice('INBUILT')}
+                      className={`p-2 rounded-lg text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all ${
+                        selectedDevice === 'INBUILT'
+                          ? 'bg-accent/20 border-accent text-accent shadow-xs'
+                          : 'bg-surface border-border text-text-muted hover:text-text'
+                      }`}
+                    >
+                      <Laptop className="w-3.5 h-3.5" />
+                      <span>Laptop Sensor</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={scanning || !!scanSuccess}
+                      onClick={() => setSelectedDevice('EXTERNAL')}
+                      className={`p-2 rounded-lg text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all ${
+                        selectedDevice === 'EXTERNAL'
+                          ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-xs'
+                          : 'bg-surface border-border text-text-muted hover:text-text'
+                      }`}
+                    >
+                      <Cpu className="w-3.5 h-3.5" />
+                      <span>External Machine</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : null}
 

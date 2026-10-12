@@ -169,4 +169,6 @@ export interface DeviceStatus {
   templateCount?: number;
   lastSeen?: string;
   error?: string | null;
+  online?: boolean;
+  deviceId?: string;
 }

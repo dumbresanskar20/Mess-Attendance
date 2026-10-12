@@ -5,7 +5,9 @@ export interface BiometricAvailability {
   externalDeviceName: string;
   inbuiltAvailable: boolean;
   inbuiltDeviceName: string;
-  primaryMethod: 'EXTERNAL' | 'INBUILT' | 'NONE';
+  anyAvailable: boolean;
+  status: 'BOTH' | 'EXTERNAL' | 'INBUILT' | 'NONE';
+  primaryMethod: 'BOTH' | 'EXTERNAL' | 'INBUILT' | 'NONE';
   message: string;
 }
 
@@ -18,24 +20,45 @@ export interface BiometricCaptureResult {
 }
 
 /**
- * Checks whether an external hardware scanner is connected OR device inbuilt fingerprint (Touch ID / Windows Hello) is available.
+ * Checks biometric availability for BOTH external hardware terminals (ZKTeco/eSSL)
+ * AND internal platform biometric scanners (Windows Hello / Touch ID).
  */
 export async function checkBiometricAvailability(): Promise<BiometricAvailability> {
   let externalAvailable = false;
   let externalDeviceName = '';
 
+  // 1. Check External Biometric Terminal (via backend device status or local bridge)
   try {
     const status = await apiRequest('/device/status');
-    // External hardware scanner is connected if bridge is connected and driver is real physical hardware (zk)
-    if (status && status.connected && status.driver === 'zk') {
+    if (status && (status.connected || status.online)) {
       externalAvailable = true;
-      externalDeviceName = `ZKTeco/eSSL (${status.ip || 'LAN'})`;
+      externalDeviceName =
+        status.driver === 'zk'
+          ? `ZKTeco/eSSL (${status.ip || 'LAN'})`
+          : `External Terminal (${status.deviceId || 'DEV-COUNTER-01'})`;
     }
   } catch (err) {
     externalAvailable = false;
   }
 
-  // Check device inbuilt biometric (Touch ID / Windows Hello)
+  // Fallback direct check to local bridge if running locally on counter PC
+  if (!externalAvailable && typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    try {
+      const bridgeController = new AbortController();
+      const bridgeTimeout = setTimeout(() => bridgeController.abort(), 1200);
+      const bridgeRes = await fetch('http://localhost:4001/status', { signal: bridgeController.signal });
+      clearTimeout(bridgeTimeout);
+      if (bridgeRes.ok) {
+        const bData = await bridgeRes.json();
+        if (bData && (bData.connected || bData.online)) {
+          externalAvailable = true;
+          externalDeviceName = `Local Terminal Bridge (${bData.driver || 'ZKTeco'})`;
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Check Device Inbuilt Platform Biometrics (Windows Hello / Mac Touch ID)
   let inbuiltAvailable = false;
   const isWebAuthnSupported =
     typeof window !== 'undefined' &&
@@ -63,16 +86,26 @@ export async function checkBiometricAvailability(): Promise<BiometricAvailabilit
     }
   }
 
-  let primaryMethod: 'EXTERNAL' | 'INBUILT' | 'NONE' = 'NONE';
+  // 3. Consolidate Dual Device Logic
+  const anyAvailable = externalAvailable || inbuiltAvailable;
+  let status: 'BOTH' | 'EXTERNAL' | 'INBUILT' | 'NONE' = 'NONE';
+  let primaryMethod: 'BOTH' | 'EXTERNAL' | 'INBUILT' | 'NONE' = 'NONE';
   let message = '';
 
-  if (externalAvailable) {
+  if (externalAvailable && inbuiltAvailable) {
+    status = 'BOTH';
+    primaryMethod = 'BOTH';
+    message = `Both biometric scanners online: External machine (${externalDeviceName}) and Laptop sensor (${inbuiltDeviceName}) are ready.`;
+  } else if (externalAvailable) {
+    status = 'EXTERNAL';
     primaryMethod = 'EXTERNAL';
     message = `External scanner connected: ${externalDeviceName}`;
   } else if (inbuiltAvailable) {
+    status = 'INBUILT';
     primaryMethod = 'INBUILT';
-    message = `External scanner not connected. Using device inbuilt sensor: ${inbuiltDeviceName}`;
+    message = `Laptop fingerprint scanner detected: ${inbuiltDeviceName}`;
   } else {
+    status = 'NONE';
     primaryMethod = 'NONE';
     const isSecure = typeof window !== 'undefined' && window.isSecureContext;
     if (!isSecure && typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
@@ -80,7 +113,7 @@ export async function checkBiometricAvailability(): Promise<BiometricAvailabilit
         'Inbuilt biometrics require HTTPS when accessed from other devices over the local network (browser security policy).';
     } else {
       message =
-        'No biometric sensor detected. Ensure this device has a fingerprint sensor (Windows Hello / Touch ID) configured in OS settings.';
+        'No biometric sensor detected. Ensure an external machine is connected or Windows Hello/Touch ID is configured in settings.';
     }
   }
 
@@ -89,6 +122,8 @@ export async function checkBiometricAvailability(): Promise<BiometricAvailabilit
     externalDeviceName,
     inbuiltAvailable,
     inbuiltDeviceName,
+    anyAvailable,
+    status,
     primaryMethod,
     message,
   };

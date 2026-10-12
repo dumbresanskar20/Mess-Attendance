@@ -28,7 +28,18 @@ import {
 } from '../utils/biometrics';
 
 export const CounterPage: React.FC = () => {
-  const { latestScan, isDeviceOnline } = useSocket();
+  const {
+    latestScan,
+    isDeviceOnline,
+    isExternalOnline,
+    isInternalOnline,
+    scannerStatus,
+    scannerName,
+    externalDeviceName,
+    internalDeviceName,
+    biometricAvailability,
+    refreshDeviceStatus,
+  } = useSocket();
 
   // Active result card state
   const [activeResult, setActiveResult] = useState<ScanOutcome | null>(null);
@@ -40,7 +51,6 @@ export const CounterPage: React.FC = () => {
   const [servedCount, setServedCount] = useState<number>(0);
 
   // Biometric hardware inspection state
-  const [biometricInfo, setBiometricInfo] = useState<BiometricAvailability | null>(null);
   const [checkingHardware, setCheckingHardware] = useState(false);
   const [scanningBiometric, setScanningBiometric] = useState(false);
 
@@ -65,8 +75,7 @@ export const CounterPage: React.FC = () => {
   const detectHardware = async () => {
     setCheckingHardware(true);
     try {
-      const avail = await checkBiometricAvailability();
-      setBiometricInfo(avail);
+      await refreshDeviceStatus();
     } catch (e: any) {
       console.warn('Hardware detection failed:', e);
     } finally {
@@ -96,7 +105,6 @@ export const CounterPage: React.FC = () => {
   useEffect(() => {
     fetchServedStats();
     fetchStudentsForSim();
-    detectHardware();
     const interval = setInterval(fetchServedStats, 15000);
     return () => clearInterval(interval);
   }, []);
@@ -196,7 +204,7 @@ export const CounterPage: React.FC = () => {
           body: JSON.stringify({
             studentId: targetStudent.id,
             manualReason: 'FINGER_NOT_READING',
-            note: `Verified via Laptop Fingerprint (${biometricInfo?.inbuiltDeviceName || 'Windows Hello'})`,
+            note: `Verified via Laptop Fingerprint (${internalDeviceName})`,
           }),
         });
       }
@@ -208,7 +216,7 @@ export const CounterPage: React.FC = () => {
         setManualNote('');
         setManualMessage({
           type: 'success',
-          text: `Verified via ${biometricInfo?.inbuiltDeviceName || 'laptop sensor'} for ${outcome.student?.name || targetStudent.name}. ${outcome.student?.tokensLeft ?? ''} tokens left.`,
+          text: `Verified via ${internalDeviceName} for ${outcome.student?.name || targetStudent.name}. ${outcome.student?.tokensLeft ?? ''} tokens left.`,
         });
       } else {
         setManualMessage({
@@ -312,53 +320,63 @@ export const CounterPage: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6">
-      {/* Top Banner: Hardware Status / Fallback Notice */}
-      {!isDeviceOnline && (
-        biometricInfo?.inbuiltAvailable ? (
-          <div className="p-3 sm:p-3.5 rounded-card bg-accent-subtle/30 text-accent border border-accent-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-xs">
-            <div className="flex items-center gap-2.5 text-xs font-semibold">
-              <Laptop className="w-5 h-5 flex-shrink-0 text-accent" />
-              <span>
-                External machine offline. Inbuilt laptop fingerprint scanner detected ({biometricInfo.inbuiltDeviceName}).
-                You can verify attendance using your laptop&apos;s scanner!
-              </span>
-            </div>
-            <div className="flex items-center gap-2 self-end sm:self-auto">
-              <Badge variant="accent" className="flex items-center gap-1 font-semibold">
-                <Fingerprint className="w-3 h-3" /> Laptop Scanner Active
-              </Badge>
-              <button
-                type="button"
-                onClick={detectHardware}
-                disabled={checkingHardware}
-                title="Re-check hardware status"
-                className="p-1 rounded hover:bg-surface text-text-muted hover:text-text transition-colors"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${checkingHardware ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
+      {/* Top Banner: Dual Device Hardware Status */}
+      {scannerStatus === 'BOTH' ? (
+        <div className="p-3 sm:p-3.5 rounded-card bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-xs">
+          <div className="flex items-center gap-2.5 text-xs font-semibold">
+            <Sparkles className="w-5 h-5 flex-shrink-0 text-emerald-400" />
+            <span>
+              Both scanners online: External Machine ({externalDeviceName}) &amp; Laptop Sensor ({internalDeviceName}) are ready.
+            </span>
           </div>
-        ) : (
-          <div className="p-3 sm:p-3.5 rounded-card bg-danger-subtle text-danger border border-danger-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 animate-pulse">
-            <div className="flex items-center gap-2.5 text-xs font-semibold">
-              <ShieldAlert className="w-5 h-5 flex-shrink-0" />
-              <span>Device offline. External and laptop fingerprint scanners are unreachable. Please use manual marking below.</span>
-            </div>
-            <div className="flex items-center gap-2 self-end sm:self-auto">
-              <Badge variant="danger">Offline</Badge>
-              <button
-                type="button"
-                onClick={detectHardware}
-                disabled={checkingHardware}
-                title="Re-check hardware status"
-                className="p-1 rounded hover:bg-surface text-text-muted hover:text-text transition-colors"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${checkingHardware ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
+          <Badge variant="success" className="flex items-center gap-1 font-semibold">
+            <Fingerprint className="w-3 h-3" /> Both Scanners Ready
+          </Badge>
+        </div>
+      ) : scannerStatus === 'INTERNAL' ? (
+        <div className="p-3 sm:p-3.5 rounded-card bg-accent-subtle/30 text-accent border border-accent-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-xs">
+          <div className="flex items-center gap-2.5 text-xs font-semibold">
+            <Laptop className="w-5 h-5 flex-shrink-0 text-accent" />
+            <span>
+              External scanner machine is offline. Inbuilt laptop fingerprint scanner detected ({internalDeviceName}).
+              You can verify attendance using your laptop&apos;s scanner!
+            </span>
           </div>
-        )
-      )}
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <Badge variant="accent" className="flex items-center gap-1 font-semibold">
+              <Fingerprint className="w-3 h-3" /> Laptop Scanner Active
+            </Badge>
+            <button
+              type="button"
+              onClick={detectHardware}
+              disabled={checkingHardware}
+              title="Re-check hardware status"
+              className="p-1 rounded hover:bg-surface text-text-muted hover:text-text transition-colors"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${checkingHardware ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+      ) : scannerStatus === 'NONE' ? (
+        <div className="p-3 sm:p-3.5 rounded-card bg-danger-subtle text-danger border border-danger-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 animate-pulse">
+          <div className="flex items-center gap-2.5 text-xs font-semibold">
+            <ShieldAlert className="w-5 h-5 flex-shrink-0" />
+            <span>Device offline. External and laptop fingerprint scanners are unreachable. Please use manual marking below.</span>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <Badge variant="danger">Offline</Badge>
+            <button
+              type="button"
+              onClick={detectHardware}
+              disabled={checkingHardware}
+              title="Re-check hardware status"
+              className="p-1 rounded hover:bg-surface text-text-muted hover:text-text transition-colors"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${checkingHardware ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {/* Header Bar: Served Count, Scanner Status, Mute Toggle */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-card bg-surface-elevated border border-border">
@@ -372,13 +390,17 @@ export const CounterPage: React.FC = () => {
 
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-text-muted font-medium">Scanner:</span>
-            {isDeviceOnline ? (
+            {scannerStatus === 'BOTH' ? (
               <Badge variant="success" className="flex items-center gap-1 text-[11px]">
-                <Cpu className="w-3 h-3" /> External Machine
+                <Sparkles className="w-3 h-3" /> Both Online
               </Badge>
-            ) : biometricInfo?.inbuiltAvailable ? (
+            ) : scannerStatus === 'INTERNAL' ? (
               <Badge variant="accent" className="flex items-center gap-1 text-[11px]">
-                <Laptop className="w-3 h-3" /> {biometricInfo.inbuiltDeviceName}
+                <Laptop className="w-3 h-3" /> {internalDeviceName}
+              </Badge>
+            ) : scannerStatus === 'EXTERNAL' ? (
+              <Badge variant="success" className="flex items-center gap-1 text-[11px]">
+                <Cpu className="w-3 h-3" /> {externalDeviceName}
               </Badge>
             ) : (
               <Badge variant="danger" className="flex items-center gap-1 text-[11px]">
@@ -415,28 +437,32 @@ export const CounterPage: React.FC = () => {
             <button
               type="button"
               onClick={() => {
-                if (biometricInfo?.inbuiltAvailable) {
+                if (isInternalOnline) {
                   handleScanWithInbuiltBiometric();
                 }
               }}
               disabled={scanningBiometric}
               className={`w-20 h-20 rounded-full flex items-center justify-center border shadow-inner transition-all ${
-                biometricInfo?.inbuiltAvailable
+                isInternalOnline
                   ? 'bg-accent/10 border-accent/40 text-accent hover:bg-accent/20 hover:scale-105 cursor-pointer ring-4 ring-accent/10 active:scale-95'
-                  : 'bg-surface-subtle border-border text-accent cursor-default'
+                  : isExternalOnline
+                  ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400 cursor-default ring-4 ring-emerald-500/10'
+                  : 'bg-surface-subtle border-border text-text-muted cursor-default'
               }`}
               title={
-                biometricInfo?.inbuiltAvailable
+                isInternalOnline
                   ? selectedStudent
                     ? `Click to scan fingerprint for ${selectedStudent.name}`
                     : 'Click to scan with laptop fingerprint'
-                  : 'Waiting for fingerprint scanner'
+                  : isExternalOnline
+                  ? 'Waiting for external scanner'
+                  : 'No scanner online'
               }
             >
               {scanningBiometric ? (
                 <Loader2 className="w-10 h-10 animate-spin text-accent" />
               ) : (
-                <Fingerprint className={`w-10 h-10 text-accent ${isDeviceOnline || biometricInfo?.inbuiltAvailable ? 'animate-pulse' : 'opacity-60'}`} />
+                <Fingerprint className={`w-10 h-10 ${isDeviceOnline ? 'animate-pulse text-accent' : 'opacity-40 text-text-muted'}`} />
               )}
             </button>
             <div className="space-y-1 max-w-md mx-auto">
@@ -445,25 +471,29 @@ export const CounterPage: React.FC = () => {
                   ? 'Scanning Fingerprint...'
                   : selectedStudent
                   ? `Ready to verify ${selectedStudent.name}`
-                  : biometricInfo?.inbuiltAvailable
+                  : scannerStatus === 'BOTH'
+                  ? 'Both Scanners Ready'
+                  : scannerStatus === 'INTERNAL'
                   ? 'Laptop Fingerprint Scanner Ready'
-                  : isDeviceOnline
-                  ? 'Waiting for fingerprint'
-                  : 'Fingerprint Scanner Offline'}
+                  : scannerStatus === 'EXTERNAL'
+                  ? 'Waiting for external fingerprint'
+                  : 'Fingerprint Scanners Offline'}
               </h2>
               <p className="text-xs text-text-muted">
                 {scanningBiometric
                   ? 'Touch the fingerprint sensor on your laptop now to verify attendance'
-                  : selectedStudent && biometricInfo?.inbuiltAvailable
+                  : selectedStudent && isInternalOnline
                   ? 'Click the fingerprint icon above or use the button below to scan on laptop'
-                  : biometricInfo?.inbuiltAvailable
-                  ? `Laptop sensor detected (${biometricInfo.inbuiltDeviceName}). Select a student below and touch your sensor to deduct token.`
-                  : isDeviceOnline
-                  ? 'Place finger on the reader to deduct token automatically'
+                  : scannerStatus === 'BOTH'
+                  ? `External scanner (${externalDeviceName}) & Laptop sensor (${internalDeviceName}) are both online. Touch either sensor to deduct token.`
+                  : scannerStatus === 'INTERNAL'
+                  ? `Laptop sensor detected (${internalDeviceName}). Select a student below and touch your sensor to deduct token.`
+                  : scannerStatus === 'EXTERNAL'
+                  ? `Place finger on ${externalDeviceName} to deduct token automatically`
                   : 'No fingerprint scanner reachable. Select a student below to mark meal manually.'}
               </p>
             </div>
-            {selectedStudent && biometricInfo?.inbuiltAvailable && !scanningBiometric && (
+            {selectedStudent && isInternalOnline && !scanningBiometric && (
               <button
                 type="button"
                 onClick={() => handleScanWithInbuiltBiometric()}
@@ -568,13 +598,13 @@ export const CounterPage: React.FC = () => {
         <div className="p-5 rounded-card bg-surface-elevated border border-border">
           <div className="mb-4 pb-3 border-b border-border">
             <h3 className="font-bold text-sm text-text">
-              {biometricInfo?.inbuiltAvailable
+              {isInternalOnline
                 ? 'Mark meal (Laptop Fingerprint or Manual)'
                 : 'Fingerprint not reading? Mark meal manually'}
             </h3>
             <p className="text-[11px] text-text-muted mt-0.5">
-              {biometricInfo?.inbuiltAvailable
-                ? `Verify attendance using detected laptop fingerprint (${biometricInfo.inbuiltDeviceName}) or mark manually.`
+              {isInternalOnline
+                ? `Verify attendance using detected laptop fingerprint (${internalDeviceName}) or mark manually.`
                 : 'Same rules as a scan. Logged with your staff credentials and timestamp.'}
             </p>
           </div>
@@ -662,7 +692,7 @@ export const CounterPage: React.FC = () => {
             )}
 
             {/* Laptop Fingerprint Verification Action */}
-            {selectedStudent && biometricInfo?.inbuiltAvailable && (
+            {selectedStudent && isInternalOnline && (
               <div className="p-3 rounded-lg bg-accent/10 border border-accent/30 space-y-2">
                 <div className="flex items-center justify-between text-xs font-semibold text-accent">
                   <span className="flex items-center gap-1.5">
@@ -670,7 +700,7 @@ export const CounterPage: React.FC = () => {
                     <span>Inbuilt Sensor Available</span>
                   </span>
                   <span className="text-[10px] uppercase font-bold tracking-wider">
-                    {biometricInfo.inbuiltDeviceName}
+                    {internalDeviceName}
                   </span>
                 </div>
                 <button
@@ -695,7 +725,7 @@ export const CounterPage: React.FC = () => {
             )}
 
             {/* Divider if biometric is available */}
-            {selectedStudent && biometricInfo?.inbuiltAvailable && (
+            {selectedStudent && isInternalOnline && (
               <div className="relative flex py-1 items-center">
                 <div className="flex-grow border-t border-border"></div>
                 <span className="flex-shrink mx-3 text-[10px] text-text-muted uppercase font-semibold">
@@ -741,7 +771,7 @@ export const CounterPage: React.FC = () => {
               type="submit"
               disabled={!selectedStudent || submittingManual || scanningBiometric}
               className={`w-full py-2.5 px-4 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${
-                biometricInfo?.inbuiltAvailable
+                isInternalOnline
                   ? 'bg-surface-subtle hover:bg-surface border border-border text-text'
                   : 'bg-accent hover:bg-accent-hover text-white'
               }`}

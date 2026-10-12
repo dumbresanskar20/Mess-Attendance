@@ -4,12 +4,21 @@ import { ScanOutcome, DeviceStatus } from '../types';
 import { apiRequest } from '../api/client';
 import { useAuth } from './AuthContext';
 import { APP_URLS } from '../config/urls';
+import { checkBiometricAvailability, BiometricAvailability } from '../utils/biometrics';
 
-interface SocketContextType {
+export interface SocketContextType {
   socket: Socket | null;
   latestScan: ScanOutcome | null;
   deviceStatus: DeviceStatus | null;
-  isDeviceOnline: boolean;
+  // Dual device check
+  isDeviceOnline: boolean; // True if EITHER or BOTH scanners are ready
+  isExternalOnline: boolean;
+  isInternalOnline: boolean;
+  scannerStatus: 'BOTH' | 'EXTERNAL' | 'INTERNAL' | 'NONE';
+  scannerName: string;
+  externalDeviceName: string;
+  internalDeviceName: string;
+  biometricAvailability: BiometricAvailability | null;
   clearLatestScan: () => void;
   refreshDeviceStatus: () => Promise<void>;
 }
@@ -21,10 +30,21 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [socket, setSocket] = useState<Socket | null>(null);
   const [latestScan, setLatestScan] = useState<ScanOutcome | null>(null);
   const [deviceStatus, setDeviceStatus] = useState<DeviceStatus | null>({
-    connected: true, // Default to online for smooth UX
-    driver: 'mock',
-    lastSeen: new Date().toISOString(),
+    connected: false,
+    driver: 'zk',
+    lastSeen: undefined,
   });
+  const [biometricAvailability, setBiometricAvailability] = useState<BiometricAvailability | null>(null);
+
+  // Checks both external bridge status and laptop platform biometrics
+  const checkHardwareStatus = async () => {
+    try {
+      const bio = await checkBiometricAvailability();
+      setBiometricAvailability(bio);
+    } catch {
+      // Ignore background detection errors
+    }
+  };
 
   const fetchDeviceStatus = async () => {
     try {
@@ -33,6 +53,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } catch {
       // If endpoint fails, keep current state or fallback
     }
+    await checkHardwareStatus();
   };
 
   useEffect(() => {
@@ -46,8 +67,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     fetchDeviceStatus();
 
-    // Poll device status every 30 seconds
-    const interval = setInterval(fetchDeviceStatus, 30000);
+    // Poll dual device status every 25 seconds
+    const interval = setInterval(fetchDeviceStatus, 25000);
 
     const socketUrl =
       import.meta.env.VITE_BACKEND_URL ||
@@ -64,6 +85,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     s.on('connect', () => {
       console.log('[Socket] Connected to backend');
+      fetchDeviceStatus();
     });
 
     s.on('scan:result', (data: ScanOutcome) => {
@@ -74,6 +96,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     s.on('device:status', (status: DeviceStatus) => {
       console.log('[Socket] Received device:status', status);
       setDeviceStatus(status);
+      checkHardwareStatus();
     });
 
     setSocket(s);
@@ -92,9 +115,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => clearInterval(timer);
   }, []);
 
-  const isDeviceOnline = (() => {
+  // 1. External scanner is online if heartbeat is active within 90s OR biometrics utility detected bridge
+  const isExternalOnline = (() => {
+    if (biometricAvailability?.externalAvailable) return true;
     if (!deviceStatus) return false;
-    if (!deviceStatus.connected) return false;
+    if (!deviceStatus.connected && !deviceStatus.online) return false;
     if (deviceStatus.lastSeen) {
       const lastSeenTime = new Date(deviceStatus.lastSeen).getTime();
       if (!isNaN(lastSeenTime) && now - lastSeenTime > 90000) {
@@ -102,6 +127,38 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     }
     return true;
+  })();
+
+  // 2. Internal scanner is online if Windows Hello / Touch ID is available
+  const isInternalOnline = Boolean(biometricAvailability?.inbuiltAvailable);
+
+  // 3. Overall device readiness: Online if EITHER or BOTH are ready!
+  const isDeviceOnline = isExternalOnline || isInternalOnline;
+
+  // 4. Detailed status breakdown
+  const scannerStatus: 'BOTH' | 'EXTERNAL' | 'INTERNAL' | 'NONE' =
+    isExternalOnline && isInternalOnline
+      ? 'BOTH'
+      : isExternalOnline
+      ? 'EXTERNAL'
+      : isInternalOnline
+      ? 'INTERNAL'
+      : 'NONE';
+
+  const externalDeviceName =
+    biometricAvailability?.externalDeviceName ||
+    (deviceStatus?.driver === 'zk' ? 'ZKTeco/eSSL' : deviceStatus?.deviceId || 'External Machine');
+
+  const internalDeviceName =
+    biometricAvailability?.inbuiltDeviceName || 'Laptop Fingerprint Sensor';
+
+  const scannerName = (() => {
+    if (scannerStatus === 'BOTH') {
+      return `${externalDeviceName} + ${internalDeviceName}`;
+    }
+    if (scannerStatus === 'EXTERNAL') return externalDeviceName;
+    if (scannerStatus === 'INTERNAL') return internalDeviceName;
+    return 'Offline';
   })();
 
   const clearLatestScan = () => {
@@ -115,6 +172,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         latestScan,
         deviceStatus,
         isDeviceOnline,
+        isExternalOnline,
+        isInternalOnline,
+        scannerStatus,
+        scannerName,
+        externalDeviceName,
+        internalDeviceName,
+        biometricAvailability,
         clearLatestScan,
         refreshDeviceStatus: fetchDeviceStatus,
       }}
@@ -131,3 +195,4 @@ export const useSocket = () => {
   }
   return context;
 };
+
